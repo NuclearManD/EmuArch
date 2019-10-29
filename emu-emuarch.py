@@ -1,0 +1,257 @@
+MAX64 = 2**64 - 1
+MAX32 = 2**32 - 1
+
+SYS_MALLOC  = 0
+SYS_FREE    = 1
+SYS_PUTCHAR = 2
+SYS_PRINTF  = 3
+
+OFFSET_MASK =   0xFFFFFFFF00000000
+ADR_MASK =      0x00000000FFFFFFFF
+RAM_OFFSET  =   0x100000000
+CODE_OFFSET =   0x00
+
+ram = [255] * (32 * 1024)
+mem_ptrs = []
+heap_top = 0
+
+# Load RAX with 'H' in a creative way
+# code = [0b10000001, 0b01000001, 0xFF, ord('H'), 0b00001100, 0b00000001, 0xFF]
+
+# Test movd 1, rax, 0xf00f1337
+# code = [0b10000001, 0b10100000, 0xf0, 0x0f, 0x13, 0x37]
+
+def syscall(val, cpu):
+    global heap_top, ram, ram_ptrs
+    if val == SYS_MALLOC:
+        qty = cpu.reg_set_0[0]
+        if qty > len(ram) - heap_top:
+            throw(cpu, -1)
+        out = heap_top
+        mem_ptrs.append([out, qty])
+        heap_top += qty
+        cpu.reg_set_0[0] = out
+    elif val == SYS_FREE:
+        ptr = cpu.reg_set_0[0]
+        for n in range(len(mem_ptrs)):
+            block = mem_ptrs[n]
+            if ptr == block[0]:
+                qty = block[1]
+                if n == len(mem_ptrs) - 1:
+                    if len(mem_ptrs) > 1:
+                        heap_top = sum(mem_ptrs[n - 1])
+                    else:
+                        heap_top = 0
+                mem_ptrs.pop(n)
+                cpu.reg_set_0[0] = qty
+                return
+        throw(cpu, -2)
+    elif val == SYS_PUTCHAR:
+        print(chr(cpu.reg_set_0[0]&255), end = '')
+def size_to_bytes(n):
+    return 2**(3 - n)
+
+def size_to_mask(n):
+    return (256**size_to_bytes(n)) - 1
+
+def reg_set_size(set):
+    if set == 0 or set == 3:
+        return 64 # set 0 and 3 have 64 bits per register
+    else:
+        return 32
+
+class emuarch_cpu:
+    def __init__(self, code, stacksize = 8192):
+        self.code = code
+        self.reg_set_0 = [0] * 8
+        self.reg_set_1 = [0] * 8
+        self.reg_set_2 = [0.0] * 8
+
+        self.reg_set_0[6] = (len(ram) - 1) | RAM_OFFSET
+
+        self.exited = False
+    def getreg(self, regid):
+        num = regid & 7
+        set = regid >> 3
+        if set == 0:
+            return self.reg_set_0[num]
+        elif set == 1:
+            return self.reg_set_1[num]
+        elif set == 2:
+            return self.reg_set_2[num]
+        else:
+            raise ValueError("Invalid register set {}".format(set))
+    def loadreg(self, set, num, val = None):
+        if val == None:
+            val = num
+            num = set & 7
+            set = set >> 3
+        if num >= 8:
+            raise ValueError("Invalid register id {}:{}".format(set, val))
+        if set == 0:
+            self.reg_set_0[num] = int(val) & MAX64
+        elif set == 1:
+            self.reg_set_1[num] = int(val) & MAX32
+        elif set == 2:
+            self.reg_set_2[num] = float(val)
+        else:
+            raise ValueError("Invalid register set {}".format(set))
+    def readbyte(self, addr):
+        offset = addr & OFFSET_MASK
+        addr = addr & ADR_MASK
+        if offset == RAM_OFFSET:
+            if addr >= len(ram):
+                return 0xFF
+            return ram[addr]
+        elif offset == CODE_OFFSET:
+            if addr >= len(self.code):
+                return 0xFF
+            return self.code[addr] & 255
+        else:
+            return 0x00
+    def readword(self, addr):
+        return self.readbyte(addr)  * 0x000000100 + self.readbyte(addr + 1)
+    def readdword(self, addr):
+        return self.readword(addr)  * 0x000010000 + self.readword(addr + 2)
+    def readqword(self, addr):
+        return self.readdword(addr) * 0x100000000 + self.readdword(addr + 4)
+    def writebyte(self, addr, val):
+        offset = addr & OFFSET_MASK
+        addr = addr & ADR_MASK
+        val &= 255
+        if offset == RAM_OFFSET:
+            if addr < len(ram):
+                ram[addr] = val
+        elif offset == CODE_OFFSET:
+            if addr < len(self.code):
+                self.code[addr] = val
+    def writeword(self, addr, val):
+        self.writebyte(addr, val >> 8)
+        self.writebyte(addr + 1, val)
+    def writedword(self, addr, val):
+        self.writeword(addr, val >> 16)
+        self.writeword(addr + 2, val)
+    def writeqword(self, addr, val):
+        self.writedword(addr, val >> 32)
+        self.writedword(addr + 4, val)
+    def pushbyte(self, val):
+        adr = self.getreg(6) - 1
+        self.writebyte(adr + 1, val)
+        self.loadreg(6, adr)
+    def pushword(self, val):
+        adr = self.getreg(6) - 2
+        self.writeword(adr + 1, val)
+        self.loadreg(6, adr)
+    def pushdword(self, val):
+        adr = self.getreg(6) - 4
+        self.writedword(adr + 1, val)
+        self.loadreg(6, adr)
+    def pushqword(self, val):
+        adr = self.getreg(6) - 8
+        self.writeqword(adr + 1, val)
+        self.loadreg(6, adr)
+    def popbyte(self):
+        adr = self.getreg(6)
+        out = self.readbyte(adr + 1)
+        self.loadreg(6, adr + 1)
+        return out
+    def step(self):
+        if self.exited:
+            return -1
+        pc = self.getreg(7)
+
+        opcode = self.readbyte(pc)
+        pc += 1
+        
+        spec1 = opcode & 0x80
+        spec2 = opcode & 0x40
+        spec3 = opcode & 0x20
+        spec4 = opcode & 0x10
+
+        # size applies for some operations. Ex: movw rax, rbx
+        size = (opcode>>2) & 3
+
+        if not spec1:
+            # basic operations
+            if not spec2:
+                # load/store
+                if not spec3:
+                    if not spec4:
+                        # register-register load/store (mov[s] r1, r2)
+                        reg_raw = self.readbyte(pc)
+                        pc += 1
+                        reg1 = ((opcode & 2) << 3) | (reg_raw >> 4)
+                        reg2 = ((opcode & 1) << 4) | (reg_raw & 15)
+                        print(reg1, reg2, size)
+                        self.loadreg(reg1, self.getreg(reg2) & size_to_mask(size))
+                    elif size == 0:
+                        # register-register exchange (exx[s] r1, r2)
+                        pass
+                    else:
+                        # reserved
+                        pass
+                else:
+                    ## maybe?: # register-memory load/store
+                    if not spec4:
+                        # reserved
+                        pass
+                    else:
+                        # reserved
+                        pass
+            else:
+                # math operations
+                pass
+        else:
+            # CISC operations
+            pattern = opcode & 0x1F
+            if not spec2:
+                if not spec3:
+                    if pattern == 0:
+                        # (syscall n)
+                        pc += 2
+                        syscall(self.readword(pc -2), self)
+                    elif pattern == 1:
+                        # (mov[s] <msb reverse bit> r1, *+)
+                        pc += 1
+                        reg_raw = self.readbyte(pc - 1)
+                        regid = reg_raw & 0x1F
+                        size = (reg_raw >> 5) & 3
+                        mask = size_to_mask(size)
+                        size = size_to_bytes(size)
+                        # if this is a one, then the data will be moved to the most significant half of the register.
+                        flip_msb = reg_raw >> 7
+
+                        if size == 8:
+                            # load qword
+                            data = self.readqword(pc)
+                        elif size == 4:
+                            data = self.readdword(pc)
+                        elif size == 2:
+                            data = self.readword(pc)
+                        else:
+                            data = self.readbyte(pc)
+                        pc += size
+
+                        if flip_msb:
+                            data = data << (reg_set_size(regid>>3)//2)
+                            mask = mask << (reg_set_size(regid>>3)//2)
+
+                        print(hex(mask), hex(2**reg_set_size(regid>>3)))
+                        mask = mask ^ ((2**reg_set_size(regid>>3)) - 1)
+                        print(hex(mask))
+                        self.loadreg(regid, (self.getreg(regid) & mask) | data)
+                else:
+                    pass
+            else:
+                if pattern == 0x1F:
+                    # stop
+                    self.exited = True
+        self.loadreg(0, 7, pc)
+        return opcode
+    def run(self, cycles = 0):
+        while True:
+            if self.step() == -1:
+                return
+            cycles -= 1
+            if cycles == 0:
+                return
