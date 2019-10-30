@@ -48,6 +48,8 @@ def syscall(val, cpu):
         throw(cpu, -2)
     elif val == SYS_PUTCHAR:
         print(chr(cpu.reg_set_0[0]&255), end = '')
+    else:
+        throw(cpu, -3)
 def size_to_bytes(n):
     return 2**(3 - n)
 
@@ -236,9 +238,7 @@ class emuarch_cpu:
                             data = data << (reg_set_size(regid>>3)//2)
                             mask = mask << (reg_set_size(regid>>3)//2)
 
-                        print(hex(mask), hex(2**reg_set_size(regid>>3)))
                         mask = mask ^ ((2**reg_set_size(regid>>3)) - 1)
-                        print(hex(mask))
                         self.loadreg(regid, (self.getreg(regid) & mask) | data)
                 else:
                     pass
