@@ -85,6 +85,8 @@ def errormsg(ln, string):
     print("Error on line "+str(ln)+": "+string)
 def error_missing_arg(ln, cmd):
     print("Error on line "+str(ln)+": Opcode "+cmd+" missing argument(s)")
+def error_too_many_args(ln, cmd):
+    print("Error on line "+str(ln)+": Opcode "+cmd+" has too many arguments")
 names = {}
 adr = 0
 out=[]
@@ -131,6 +133,9 @@ def evaluate(x):
         wr32(location)
     else:
         emit(x)
+
+MOV_OPS = ['movq', 'movd', 'movw', 'movb']
+        
 for tokens, linenum in token_gen(filedat):
     cmd = tokens[0]
     if cmd == '.org':
@@ -144,18 +149,24 @@ for tokens, linenum in token_gen(filedat):
         else:
             qzx=tokens[1]
             names[qzx] = evaluate(tokens[2])
-    elif cmd == 'movb':
+    elif cmd in MOV_OPS:
         if len(tokens) < 3:
             error_missing_arg(linenum, cmd)
+        elif len(tokens) > 4:
+            error_too_many_args(linenum, cmd)
         else:
-            if len(tokens) == 4 and tokens.pop(1) in ['s', 'rot', 'rev', 'rotate', 'swap', 'flip']:
-                s = 0b10000000
+            size = MOV_OPS.index(cmd)
+            if tokens[-1] in regs:
+                r1 = regs.index(tokens[0])
             else:
-                s = 0
-            reg = regs[:16].index(tokens[1])
-            emit(0b10000001)
-            emit(0b01100000 | s | reg)
-            emit(parseint(tokens[2]))
+                if len(tokens) == 4 and tokens[1] in ['s', 'rot', 'rev', 'rotate', 'swap', 'flip']:
+                    s = 0b10000000
+                else:
+                    s = 0
+                reg = regs[:16].index(tokens[1])
+                emit(0b10000001)
+                emit((size << 5) | s | reg)
+                emit(parseint(tokens[2]))
     elif cmd == 'syscall':
         if len(tokens) < 2:
             error_missing_arg(linenum, cmd)

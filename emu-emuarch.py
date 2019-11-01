@@ -58,10 +58,17 @@ def size_to_mask(n):
 
 def reg_set_size(set):
     if set == 0 or set == 3:
+        return 0 # set 0 and 3 have 64 bits per register
+    else:
+        return 1
+
+def reg_set_bits(set):
+    if set == 0 or set == 3:
         return 64 # set 0 and 3 have 64 bits per register
     else:
         return 32
-
+def reg_set_unsigned_max(set):
+    return 2**reg_set_bits(set) - 1
 class emuarch_cpu:
     def __init__(self, code, stacksize = 8192):
         self.code = code
@@ -184,11 +191,19 @@ class emuarch_cpu:
                         pc += 1
                         reg1 = ((opcode & 2) << 3) | (reg_raw >> 4)
                         reg2 = ((opcode & 1) << 4) | (reg_raw & 15)
-                        print(reg1, reg2, size)
-                        self.loadreg(reg1, self.getreg(reg2) & size_to_mask(size))
+                        data = self.getreg(reg2) & size_to_mask(size)
+                        data |= self.getreg(reg1) & (reg_set_unsigned_max(reg1) ^ size_to_mask(size))
+                        self.loadreg(reg1, data)
                     elif size == 0:
-                        # register-register exchange (exx[s] r1, r2)
-                        pass
+                        # register-register exchange (exx r1, r2)
+                        reg_raw = self.readbyte(pc)
+                        pc += 1
+                        reg1 = ((opcode & 2) << 3) | (reg_raw >> 4)
+                        reg2 = ((opcode & 1) << 4) | (reg_raw & 15)
+                        data = self.getreg(reg2)
+                        tmp = self.getreg(reg1)
+                        self.loadreg(reg2, tmp)
+                        self.loadreg(reg1, data)
                     else:
                         # reserved
                         pass
@@ -235,10 +250,10 @@ class emuarch_cpu:
                         pc += size
 
                         if flip_msb:
-                            data = data << (reg_set_size(regid>>3)//2)
-                            mask = mask << (reg_set_size(regid>>3)//2)
+                            data = data << (reg_set_bits(regid>>3)//2)
+                            mask = mask << (reg_set_bits(regid>>3)//2)
 
-                        mask = mask ^ ((2**reg_set_size(regid>>3)) - 1)
+                        mask = mask ^ ((2**reg_set_bits(regid>>3)) - 1)
                         self.loadreg(regid, (self.getreg(regid) & mask) | data)
                 else:
                     pass
