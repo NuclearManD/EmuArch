@@ -113,6 +113,17 @@ def wr32(x):
 def wr16(x):
     emit(((x>>8)+256)&255)
     emit(x&255)
+def wr_size(s, x):
+    if s == 0:
+        wr64(x)
+    elif s == 1:
+        wr32(x)
+    elif s == 2:
+        wr16(x)
+    elif s == 3:
+        emit(x)
+    else:
+        raise ValueError("[Critical error : flaw in assembler] wr_size requires first argument to be in the range 0-3 (inclusive)")
 def parseint(x, allow_ref=True):
     if is_int(x):
         return(to_int(x))
@@ -157,16 +168,34 @@ for tokens, linenum in token_gen(filedat):
         else:
             size = MOV_OPS.index(cmd)
             if tokens[-1] in regs:
-                r1 = regs.index(tokens[0])
+                r1 = regs.index(tokens[1])
+                r2 = regs.index(tokens[2])
+                regcode = ((r1 << 4) & 0xF0) | (r2 & 15)
+                opcode = 0b00000000 | (size << 2) | ((r1 >> 3) & 2) | (r1 >> 4)
+                emit(opcode)
+                emit(regcode)
             else:
                 if len(tokens) == 4 and tokens[1] in ['s', 'rot', 'rev', 'rotate', 'swap', 'flip']:
                     s = 0b10000000
+                    tokens.pop(1)
                 else:
                     s = 0
                 reg = regs[:16].index(tokens[1])
                 emit(0b10000001)
                 emit((size << 5) | s | reg)
-                emit(parseint(tokens[2]))
+                wr_size(size, parseint(tokens[2]))
+    elif cmd == 'exx':
+        if len(tokens) < 3:
+            error_missing_arg(linenum, cmd)
+        elif len(tokens) > 3:
+            error_too_many_args(linenum, cmd)
+        else:
+            r1 = regs.index(tokens[1])
+            r2 = regs.index(tokens[2])
+            regcode = ((r1 << 4) & 0xF0) | (r2 & 15)
+            opcode = 0b00010000 | ((r1 >> 3) & 2) | (r1 >> 4)
+            emit(opcode)
+            emit(regcode)
     elif cmd == 'syscall':
         if len(tokens) < 2:
             error_missing_arg(linenum, cmd)
