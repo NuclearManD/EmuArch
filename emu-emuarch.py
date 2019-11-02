@@ -143,6 +143,32 @@ class emuarch_cpu:
     def writeqword(self, addr, val):
         self.writedword(addr, val >> 32)
         self.writedword(addr + 4, val)
+    def writesize(self, size, addr, val):
+        if size == 0:
+            self.writeqword(addr, val)
+        elif size == 1:
+            self.writedword(addr, val)
+        elif size == 2:
+            self.writeword(addr, val)
+        elif size == 3:
+            self.writebyte(addr, val)
+        else:
+            raise ValueError("Invalid size - internal emulator error")
+    def readsize(self, size, addr):
+        if size == 0:
+            return self.readqword(addr)
+        elif size == 1:
+            return self.readdword(addr)
+        elif size == 2:
+            return self.readword(addr)
+        elif size == 3:
+            return self.readbyte(addr)
+        else:
+            raise ValueError("Invalid size - internal emulator error")
+    def writereg(self, size, regid, val):
+        mask = size_to_mask(size)
+        mask2 = mask ^ reg_set_unsigned_max(regid)
+        self.loadreg(regid, (self.getreg(regid) & mask2) | (val & mask))
     def pushbyte(self, val):
         adr = self.getreg(6) - 1
         self.writebyte(adr + 1, val)
@@ -204,6 +230,11 @@ class emuarch_cpu:
                         tmp = self.getreg(reg1)
                         self.loadreg(reg2, tmp)
                         self.loadreg(reg1, data)
+                    elif size == 2:
+                        # l32 r, #
+                        data = self.readdword(pc)
+                        pc += 4
+                        self.writereg(1, opcode & 3, data)
                     else:
                         # reserved
                         pass
@@ -219,14 +250,17 @@ class emuarch_cpu:
                 # math operations
                 pass
         else:
+            # 0b1xxxxxxx
             # CISC operations
             pattern = opcode & 0x1F
             if not spec2:
+                # 0b10xxxxxx
                 if not spec3:
+                    # 0b100xxxxx
                     if pattern == 0:
                         # (syscall n)
                         pc += 2
-                        syscall(self.readword(pc -2), self)
+                        syscall(self.readword(pc - 2), self)
                     elif pattern == 1:
                         # (mov[s] <msb reverse bit> r1, *+)
                         pc += 1
@@ -256,11 +290,25 @@ class emuarch_cpu:
                         mask = mask ^ ((2**reg_set_bits(regid>>3)) - 1)
                         self.loadreg(regid, (self.getreg(regid) & mask) | data)
                 else:
+                    # 0b101xxxxx
+                    # CISC stack ops
                     pass
             else:
-                if pattern == 0x1F:
-                    # stop
-                    self.exited = True
+                # 0b11xxxxxx
+                if not spec3:
+                    # 0b110xxxxx
+                    if pattern & 0x13 == 0x00:
+                        # lod[s]
+                        ptr = self.getreg(4)
+                        self.writereg(size, 0, self.readsize(size, ptr))
+                        self.loadreg(4, ptr + size_to_bytes(size))
+                else:
+                    # 0b111xxxxx
+                    if pattern == 0x00:
+                        pc = self.readqword(pc)
+                    elif pattern == 0x1F:
+                        # stop
+                        self.exited = True
         self.loadreg(0, 7, pc)
         return opcode
     def run(self, cycles = 0):
@@ -270,3 +318,8 @@ class emuarch_cpu:
             cycles -= 1
             if cycles == 0:
                 return
+def loadbin(fn):
+    f = open(fn, 'rb')
+    data = f.read()
+    f.close()
+    return data

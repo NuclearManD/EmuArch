@@ -88,11 +88,14 @@ def error_missing_arg(ln, cmd):
     errormsg(ln, "Opcode "+cmd+" missing argument(s)")
 def error_too_many_args(ln, cmd):
     errormsg(ln, "Opcode "+cmd+" has too many arguments")
+def error_bad_arg(ln, cmd, arg):
+    errormsg(ln, "Opcode "+cmd+" not accepting argument '"+arg+"'")
 names = {}
 adr = 0
 out=[]
-lswrt=0
+lswrt = 0
 location = 0
+lsop = 0
 def emit(s):
     global lswrt, location
     lswrt = location
@@ -137,11 +140,13 @@ def parseint(x, allow_ref=True):
     if is_int(x):
         return(to_int(x))
     elif x=='$':
-        return(location)
+        return(lsop)
     elif allow_ref:
         if x[0] == '.':
             x = lslbl + x
         return x
+    else:
+        return None
 def old_evaluate(x):
     if x in regs:
         errormsg(linenum, "Internal attempt to interpret register as label")
@@ -228,8 +233,30 @@ for tokens, linenum in token_gen(filedat):
         else:
             emit(0b10000000)
             wr16(parseint(tokens[1]))
+    elif cmd == 'l32':
+        if len(tokens) < 3:
+            error_missing_arg(linenum, cmd)
+        elif len(tokens) > 3:
+            error_too_many_args(linenum, cmd)
+        else:
+            reg = ['rax', 'rbx', 'rcx', 'rdx'].index(tokens[1])
+            if reg == -1:
+                errormsg(linenum, "Invalid register or instruction not possible: l32 {}, [any]".format(tokens[1]))
+            else:
+                val = parseint(tokens[2], False)
+                if val == None:
+                    error_bad_arg(linenum, cmd, tokens[2])
+                else:
+                    emit(0x18 + reg)
+                    wr32(val)
     elif cmd == 'halt':
         emit(0xFF)
+    elif cmd == 'jmp':
+        if len(tokens) < 2:
+            error_missing_arg(linenum, cmd)
+        else:
+            emit(0b11100000)
+            wr64(parseint(tokens[1]))
     elif cmd in LOAD_OPS:
         size = LOAD_OPS.index(cmd)
         if len(tokens) > 1:
@@ -237,7 +264,8 @@ for tokens, linenum in token_gen(filedat):
         else:
             emit(0b11000000 | (size << 2))
     else:
-        errormsg(linenum, "unknown opcode '"+cmd+"'")
+        errormsg(linenum, "Unknown opcode '"+cmd+"'")
+    lsop = location
 if '-eo' in args:
     # export object file
     with open(ofn + '.eo', 'wb') as f:
