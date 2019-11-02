@@ -190,6 +190,16 @@ class emuarch_cpu:
         out = self.readbyte(adr + 1)
         self.loadreg(6, adr + 1)
         return out
+    def compare(self, a, b):
+        r = a - b
+        flags = 0
+        if r < 0:
+            flags |= 1 # less than
+        elif r > 0:
+            flags |= 2 # more than
+        else:
+            flags |= 4 # equal
+        self.reg_set_1[7] = (self.reg_set_1[7] & 0xFFFFFFF0) | flags
     def step(self):
         if self.exited:
             return -1
@@ -230,6 +240,10 @@ class emuarch_cpu:
                         tmp = self.getreg(reg1)
                         self.loadreg(reg2, tmp)
                         self.loadreg(reg1, data)
+                    elif size == 1:
+                        size = opcode & 3
+                        self.compare(self.getreg(0) & size_to_mask(size), self.readsize(size, pc))
+                        pc += size_to_bytes(size)
                     elif size == 2:
                         # l32 r, #
                         data = self.readdword(pc)

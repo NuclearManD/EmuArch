@@ -159,6 +159,7 @@ def old_evaluate(x):
 
 MOV_OPS = ['movq', 'movd', 'movw', 'movb']
 LOAD_OPS = ['lodq', 'lodd', 'lodw', 'lodb']
+RAX_CMP_OPS = ['cmpq', 'cmpd', 'cmpw', 'cmpb']
 
 lslbl = ''
 
@@ -249,6 +250,21 @@ for tokens, linenum in token_gen(filedat):
                 else:
                     emit(0x18 + reg)
                     wr32(val)
+    elif cmd in RAX_CMP_OPS:
+        if len(tokens) < 3:
+            error_missing_arg(linenum, cmd)
+        elif len(tokens) > 3:
+            error_too_many_args(linenum, cmd)
+        elif tokens[1] != 'rax':
+            errormsg(linenum, "Invalid register or instruction not possible: {} {}, [any]".format(cmd, tokens[1]))
+        else:
+            size = RAX_CMP_OPS.index(cmd)
+            val = parseint(tokens[2], size == 0)
+            if val == None:
+                error_bad_arg(linenum, cmd, tokens[2])
+            else:
+                emit(0x14 + size)
+                wr_size(size, val)
     elif cmd == 'halt':
         emit(0xFF)
     elif cmd == 'jmp':
