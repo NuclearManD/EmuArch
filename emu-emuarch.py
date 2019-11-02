@@ -303,6 +303,20 @@ class emuarch_cpu:
 
                         mask = mask ^ ((2**reg_set_bits(regid>>3)) - 1)
                         self.loadreg(regid, (self.getreg(regid) & mask) | data)
+                    elif pattern == 0x10:
+                        ctrl = self.readbyte(pc)
+                        ptr = self.readqword(pc + 1)
+                        op = ctrl >> 4
+                        regdat = self.getreg(ctrl & 0x0F)
+                        pc += 9
+                        if op == 0:
+                            # jz r1, @
+                            if regdat == 0:
+                                pc = ptr
+                        else:
+                            # jnz r1, @
+                            if regdat != 0:
+                                pc = ptr
                 else:
                     # 0b101xxxxx
                     # CISC stack ops
