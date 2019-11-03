@@ -11,6 +11,8 @@ ADR_MASK =      0x00000000FFFFFFFF
 RAM_OFFSET  =   0x100000000
 CODE_OFFSET =   0x00
 
+CPU_FEATURES = 0x300 # FPU, 64-bit mode
+
 ram = [255] * (32 * 1024)
 mem_ptrs = []
 heap_top = 0
@@ -85,6 +87,9 @@ class emuarch_cpu:
         if set == 0:
             return self.reg_set_0[num]
         elif set == 1:
+            if num == 7:
+                # CR0 bits 16-31 cannot be changed
+                return (self.reg_set_1[7] & 0xFFFF) | CPU_FEATURES
             return self.reg_set_1[num]
         elif set == 2:
             return self.reg_set_2[num]
@@ -190,6 +195,43 @@ class emuarch_cpu:
         out = self.readbyte(adr + 1)
         self.loadreg(6, adr + 1)
         return out
+    def popword(self):
+        adr = self.getreg(6)
+        out = self.readword(adr + 1)
+        self.loadreg(6, adr + 2)
+        return out
+    def popdword(self):
+        adr = self.getreg(6)
+        out = self.readdword(adr + 1)
+        self.loadreg(6, adr + 4)
+        return out
+    def popqword(self):
+        adr = self.getreg(6)
+        out = self.readqword(adr + 1)
+        self.loadreg(6, adr + 8)
+        return out
+    def popsize(self, size):
+        if size == 0:
+            return self.popqword()
+        elif size == 1:
+            return self.popdword()
+        elif size == 2:
+            return self.popword()
+        elif size == 3:
+            return self.popbyte()
+        else:
+            raise ValueError("Invalid size - internal emulator error")
+    def pushsize(self, size, val):
+        if size == 0:
+            return self.pushqword(val)
+        elif size == 1:
+            return self.pushdword(val)
+        elif size == 2:
+            return self.pushword(val)
+        elif size == 3:
+            return self.pushbyte(val)
+        else:
+            raise ValueError("Invalid size - internal emulator error")
     def compare(self, a, b):
         r = a - b
         flags = 0
@@ -320,6 +362,22 @@ class emuarch_cpu:
                 else:
                     # 0b101xxxxx
                     # CISC stack ops
+                    if pattern == 0x00:
+                        ctrl = self.readbyte(pc)
+                        reg = ctrl & 0x1F
+                        if reg == 7:
+                            pc = self.popqword()
+                        else:
+                            self.loadreg(reg, self.popsize(reg_set_size(reg >> 3)))
+                            pc += 1
+                    elif pattern == 0x01:
+                        ctrl = self.readbyte(pc)
+                        reg = ctrl & 0x1F
+                        self.pushsize(reg_set_size(reg >> 3), self.getreg(reg))
+                    elif pattern == 0x02:
+                        # 0xA2 : call @
+                        self.pushqword(pc + 8)
+                        pc = self.readqword(pc)
                     pass
             else:
                 # 0b11xxxxxx

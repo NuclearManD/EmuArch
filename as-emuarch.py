@@ -293,6 +293,21 @@ for tokens, linenum in token_gen(filedat):
             error_too_many_args(linenum, cmd)
         else:
             emit(0b11000000 | (size << 2))
+    elif cmd == 'call':
+        if len(tokens) < 2:
+            error_missing_arg(linenum, cmd)
+        elif len(tokens) > 2:
+            error_too_many_args(linenum, cmd)
+        else:
+            val = parseint(tokens[1])
+            emit(0xA2)
+            wr64(val)
+    elif cmd == 'ret':
+        if len(tokens) > 1:
+            error_too_many_args(linenum, cmd)
+        else:
+            emit(0xA0)
+            emit(0x07)
     else:
         errormsg(linenum, "Unknown opcode '"+cmd+"'")
     lsop = location
