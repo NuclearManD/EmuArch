@@ -242,6 +242,56 @@ class emuarch_cpu:
         else:
             flags |= 4 # equal
         self.reg_set_1[7] = (self.reg_set_1[7] & 0xFFFFFFF0) | flags
+    def alu(self, op, nbits, a, b):
+        #print(a, op, b, " | ", nbits)
+        if op == 0:
+            res = a + 1
+        elif op == 1:
+            res = a - 1
+        elif op == 2:
+            res = -a
+        elif op == 3:
+            res = ((2**nbits) - 1) ^ a
+        elif op == 4:
+            if type(a)==int:
+                res = int(65536*math.sqrt(a/65536.0))
+            else:
+                res = math.sqrt(a)
+        elif op == 5:
+            if type(a)==int:
+                res = int(65536*math.tanh(a/65536.0))
+            else:
+                res = math.tanh(a)
+        elif op == 16 or op == 24:
+            res = a + b
+        elif op == 17 or op == 25:
+            res = a - b
+        elif op == 18 or op == 26:
+            res = a * b
+        elif op == 19 or op == 27:
+            res = a / b
+        elif op == 20:
+            res = a & b
+        elif op == 21:
+            res = a | b
+        elif op == 22:
+            res = a ^ b
+        elif op == 23 or op == 31:
+            compare(a, b)
+            return a
+        elif op == 28:
+            res = a << b
+        elif op == 29:
+            if a < 0:
+                a = ((2**nbits) - 1) + a
+            res = a >> b
+        elif op == 30:
+            res = (a >> b)
+            if a >> (nbits - 1) == 1:
+                res |= ((2**nbits - 1) << (nbits - b))
+            
+        self.compare(res, 0)
+        return res
     def step(self):
         if self.exited:
             return -1
@@ -263,6 +313,7 @@ class emuarch_cpu:
             if not spec2:
                 # load/store
                 if not spec3:
+                    # 0b000xxxxx
                     if not spec4:
                         # register-register load/store (mov[s] r1, r2)
                         reg_raw = self.readbyte(pc)
@@ -295,6 +346,7 @@ class emuarch_cpu:
                         # reserved
                         pass
                 else:
+                    # 0b001xxxxx
                     ## maybe?: # register-memory load/store
                     if not spec4:
                         # reserved
@@ -303,8 +355,57 @@ class emuarch_cpu:
                         # reserved
                         pass
             else:
+                # 0b01xxxxxx
                 # math operations
-                pass
+                klass = opcode >> 4
+                if klass == 4:
+                    # 0b0100xxxx
+                    # Single argument register mathematics
+                    rawreg = self.readbyte(pc)
+                    pc += 1
+                    reg = rawreg & 0x1F
+                    self.loadreg(reg, self.alu(opcode & 15, reg_set_bits(reg>>3), self.getreg(reg), 0))
+                elif klass == 5:
+                    # 0b0101xxxx
+                    # Register - register dual argument mathematics
+                    reg_raw = self.readbyte(pc)
+                    pc += 1
+
+                    operation = opcode & 31
+
+                    if (operation < 0x1C and operation > 0x17) or operation == 0x1F:
+                        reg_class = 0x10
+                    else:
+                        reg_class = 0x00
+                    reg1 = reg_class | (reg_raw >> 4)
+                    reg2 = reg_class | (reg_raw & 15)
+
+                    a = self.getreg(reg1)
+                    b = self.getreg(reg2)
+
+                    self.loadreg(reg1, self.alu(operation, reg_set_bits(reg1), a, b))
+                elif klass == 6:
+                    # 0b0110xxxx
+                    # Register - constant dual argument mathematics
+                    reg_raw = self.readbyte(pc)
+                    pc += 1
+
+                    operation = (opcode & 15) | 16
+
+                    if (operation < 0x1C and operation > 0x17) or operation == 0x1F:
+                        throw()
+                    
+                    reg1 = (reg_raw & 15)
+
+                    a = self.getreg(reg1)
+                    b = self.readsize(reg_set_size(reg1 >> 3), pc)
+                    pc += reg_set_bits(reg1 >> 3) >> 3
+
+                    self.loadreg(reg1, self.alu(operation, reg_set_bits(reg1), a, b))
+                else:
+                    # 0b0111xxxx
+                    # [reserved mathematical operations with memory]
+                    pass
         else:
             # 0b1xxxxxxx
             # CISC operations
@@ -363,6 +464,7 @@ class emuarch_cpu:
                     # 0b101xxxxx
                     # CISC stack ops
                     if pattern == 0x00:
+                        # pop
                         ctrl = self.readbyte(pc)
                         reg = ctrl & 0x1F
                         if reg == 7:
@@ -371,14 +473,15 @@ class emuarch_cpu:
                             self.loadreg(reg, self.popsize(reg_set_size(reg >> 3)))
                             pc += 1
                     elif pattern == 0x01:
+                        # push
                         ctrl = self.readbyte(pc)
+                        pc += 1
                         reg = ctrl & 0x1F
                         self.pushsize(reg_set_size(reg >> 3), self.getreg(reg))
                     elif pattern == 0x02:
                         # 0xA2 : call @
                         self.pushqword(pc + 8)
                         pc = self.readqword(pc)
-                    pass
             else:
                 # 0b11xxxxxx
                 if not spec3:
@@ -404,6 +507,20 @@ class emuarch_cpu:
             cycles -= 1
             if cycles == 0:
                 return
+    def printout(self):
+        regnames = ['rax','rbx','rcx','rdx','si','di','sp','pc',
+              'r0', 'r1', 'r2', 'r3', 'r4', 'r5', 'cnt', 'cr0',
+              'f0', 'f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7']
+        for i in range(16):
+            print(regnames[i], '\t: ', hex(self.getreg(i)))
+    def printstep(self):
+        try:
+            print("Opcode", hex(self.step()))
+            self.printout()
+        except:
+            print("Internal Exception!!!")
+            self.printout()
+            throw()
 def loadbin(fn):
     f = open(fn, 'rb')
     data = f.read()

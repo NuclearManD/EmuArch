@@ -82,7 +82,11 @@ def can_eval(x):
         return True
     else:
         return False
+
+error_flag = False
 def errormsg(ln, string):
+    global error_flag
+    error_flag = True
     print("Error on line "+str(ln)+": "+string)
 def error_missing_arg(ln, cmd):
     errormsg(ln, "Opcode "+cmd+" missing argument(s)")
@@ -90,21 +94,23 @@ def error_too_many_args(ln, cmd):
     errormsg(ln, "Opcode "+cmd+" has too many arguments")
 def error_bad_arg(ln, cmd, arg):
     errormsg(ln, "Opcode "+cmd+" not accepting argument '"+arg+"'")
+def error_non_reg_arg(ln, cmd, tk):
+    errormsg(ln, "Invalid register or instruction not possible: {} {}, [any]".format(cmd, tk))
 names = {}
 adr = 0
 out=[]
 lswrt = 0
 location = 0
 lsop = 0
-def emit(s):
+def emit(s, sz = 8):
     global lswrt, location
     lswrt = location
     if type(s) == int:
         out.append(s & 255)
         location += 1
     else:
-        out.append(s)
-        location += 8
+        out.append([sz, s])
+        location += sz
 def wr64(x):
     if type(x)==str:
         emit(x)
@@ -117,12 +123,18 @@ def wr64(x):
     emit((x>>16)&255)
     emit((x>>8)&255)
     emit(x&255)
-def wr32(x : int):
+def wr32(x):
+    if type(x)==str:
+        emit(x, 4)
+        return
     emit(((x>>24)+256)&255)
     emit((x>>16)&255)
     emit((x>>8)&255)
     emit(x&255)
-def wr16(x : int):
+def wr16(x):
+    if type(x)==str:
+        emit(x, 2)
+        return
     emit(((x>>8)+256)&255)
     emit(x&255)
 def wr_size(s, x):
@@ -133,7 +145,7 @@ def wr_size(s, x):
     elif s == 2:
         wr16(x)
     elif s == 3:
-        emit(x)
+        emit(x, 1)
     else:
         raise ValueError("[Critical error : flaw in assembler] wr_size requires first argument to be in the range 0-3 (inclusive)")
 def parseint(x, allow_ref=True):
@@ -161,6 +173,9 @@ MOV_OPS = ['movq', 'movd', 'movw', 'movb']
 LOAD_OPS = ['lodq', 'lodd', 'lodw', 'lodb']
 RAX_CMP_OPS = ['cmpq', 'cmpd', 'cmpw', 'cmpb']
 JCON_OPS = ['jz', 'jnz']
+ONE_ARG_MATH_OPS = ['inc', 'dec', 'neg', 'not', 'sqrt', 'tanh']
+TWO_ARG_MATH_OPS = ['add', 'sub', 'mul', 'div', 'and', 'or', 'xor', 'cmp',
+                    None, None, None, None, 'lsh', 'rsh', 'ras', None]
 
 lslbl = ''
 
@@ -187,7 +202,7 @@ for tokens, linenum in token_gen(filedat):
         i = 1
         while i < len(tokens):
             if tokens[i] == '"':
-                for c in tokens[i + 1]:
+                for c in eval('"' + tokens[i + 1] + '"'):
                     emit(ord(c))
                 i += 1
             else:
@@ -257,7 +272,7 @@ for tokens, linenum in token_gen(filedat):
         elif len(tokens) > 3:
             error_too_many_args(linenum, cmd)
         elif tokens[1] != 'rax':
-            errormsg(linenum, "Invalid register or instruction not possible: {} {}, [any]".format(cmd, tokens[1]))
+            error_non_reg_arg(linenum, cmd, tokens[1])
         else:
             size = RAX_CMP_OPS.index(cmd)
             val = parseint(tokens[2], size == 0)
@@ -280,7 +295,7 @@ for tokens, linenum in token_gen(filedat):
         elif len(tokens) > 3:
             error_too_many_args(linenum, cmd)
         elif not tokens[1] in regs[:16]:
-            errormsg(linenum, "Invalid register or instruction not possible: {} {}, [any]".format(cmd, tokens[1]))
+            error_non_reg_arg(linenum, cmd, tokens[1])
         else:
             ctrl = JCON_OPS.index(cmd) << 4
             ctrl |= regs.index(tokens[1])
@@ -308,6 +323,68 @@ for tokens, linenum in token_gen(filedat):
         else:
             emit(0xA0)
             emit(0x07)
+    elif cmd == 'pop':
+        if len(tokens) < 2:
+            error_missing_arg(linenum, cmd)
+        elif len(tokens) > 2:
+            error_too_many_args(linenum, cmd)
+        elif not tokens[1] in regs:
+            error_non_reg_arg(linenum, cmd, tokens[1])
+        else:
+            emit(0xA0)
+            emit(regs.index(tokens[1]))
+    elif cmd == 'push':
+        if len(tokens) < 2:
+            error_missing_arg(linenum, cmd)
+        elif len(tokens) > 2:
+            error_too_many_args(linenum, cmd)
+        elif not tokens[1] in regs:
+            error_non_reg_arg(linenum, cmd, tokens[1])
+        else:
+            emit(0xA1)
+            emit(regs.index(tokens[1]))
+    elif cmd in ONE_ARG_MATH_OPS:
+        if len(tokens) < 2:
+            error_missing_arg(linenum, cmd)
+        elif len(tokens) > 2:
+            error_too_many_args(linenum, cmd)
+        elif not tokens[1] in regs:
+            error_non_reg_arg(linenum, cmd, tokens[1])
+        else:
+            emit(0x40 | ONE_ARG_MATH_OPS.index(cmd))
+            emit(regs.index(tokens[1]))
+    elif cmd in TWO_ARG_MATH_OPS:
+        if len(tokens) < 3:
+            error_missing_arg(linenum, cmd)
+        elif len(tokens) > 3:
+            error_too_many_args(linenum, cmd)
+        elif not tokens[1] in regs:
+            error_non_reg_arg(linenum, cmd, tokens[1])
+        else:
+            opid = TWO_ARG_MATH_OPS.index(cmd)
+            reg1 = regs.index(tokens[1])
+            if tokens[2] in regs:
+                # [math] r1, r2
+                reg2 = regs.index(tokens[2])
+                if (reg2 & 16) != (reg1 & 16):
+                    errormsg(linenum, cmd+": Register types do not match")
+                else:
+                    regclass = reg2 >> 4
+                    if regclass == 1 and (opid > 7 or TWO_ARG_MATH_OPS[opid + 8] != None):
+                        errormsg(linenum, cmd+": Instruction cannot use floats")
+                    else:
+                        reg2 &= 15
+                        reg1 &= 15
+                        emit(0x50 | opid | (regclass << 3))
+                        emit(reg2 | (reg1 << 4))
+            else:
+                # [math], r1, const
+                if reg1 > 15:
+                    errormsg(linenum, cmd+": Constants cannot operate on floats")
+                else:
+                    emit(0x60 | opid)
+                    emit(reg1)
+                    wr_size(reg1>>3, parseint(tokens[2]))
     else:
         errormsg(linenum, "Unknown opcode '"+cmd+"'")
     lsop = location
@@ -326,7 +403,7 @@ if '-eo' in args:
             if type(out[0]) == int:
                 c_chunk.append(out[0])
             else:
-                chunks.append([bytes(c_chunk), out[0].encode()])
+                chunks.append([bytes(c_chunk), bytes([out[0][0]]) + out[0][1].encode()])
                 c_chunk = []
             out = out[1:]
         if len(c_chunk) != 0:
@@ -343,6 +420,10 @@ else:
         if type(i)==int:
             out += bytes([i])
         else:
-            out += names[i].to_bytes(8, 'big')
-    with open(ofn + '.bin', 'wb') as f:
-        f.write(out)
+            try:
+                out += names[i[1]].to_bytes(i[0], 'big')
+            except KeyError:
+                errormsg('?', "unknown symbol '"+i[1]+"'")
+    if not error_flag:
+        with open(ofn + '.bin', 'wb') as f:
+            f.write(out)
