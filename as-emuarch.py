@@ -2,10 +2,19 @@
 print("EmuArch assembler, Copyright 2019 Dylan Brophy")
 import sys
 args=sys.argv
-if(len(args)==1):
+if args[0].startswith('python'):
+    args.pop(0)
+args.pop(0)
+if len(args) == 1:
     args.append(input("input filename:"))
     args.pop(0)
 ofn=args[0]
+if '-o' in args:
+    i = args.index('-o') + 1
+    if i == len(args):
+        print("-o must precede a filename.")
+        quit()
+    ofn = args[i]
 try:
     ofn=ofn[:ofn.index('.')]
 except:
@@ -437,42 +446,43 @@ for tokens, linenum in token_gen(filedat):
     else:
         errormsg(linenum, "Unknown opcode '"+cmd+"'")
     lsop = location
-if '-eo' in args:
-    # export object file
-    with open(ofn + '.eo', 'wb') as f:
-        f.write(len(names.keys()).to_bytes(4, 'big'))
-        for k, v in names.items():
-            f.write(v.to_bytes(8, 'big'))
-            f.write(k.encode())
-            f.write(b'\x00')
-        f.flush()
-        chunks = []
-        c_chunk = []
-        while len(out) > 0:
-            if type(out[0]) == int:
-                c_chunk.append(out[0])
+if not error_flag:
+    if '-eo' in args:
+        # export object file
+        with open(ofn + '.eo', 'wb') as f:
+            f.write(len(names.keys()).to_bytes(4, 'big'))
+            for k, v in names.items():
+                f.write(v.to_bytes(8, 'big'))
+                f.write(k.encode())
+                f.write(b'\x00')
+            f.flush()
+            chunks = []
+            c_chunk = []
+            while len(out) > 0:
+                if type(out[0]) == int:
+                    c_chunk.append(out[0])
+                else:
+                    chunks.append([bytes(c_chunk), bytes([out[0][0]]) + out[0][1].encode()])
+                    c_chunk = []
+                out = out[1:]
+            if len(c_chunk) != 0:
+                chunks.append([bytes(c_chunk), b''])
+            for i in chunks:
+                f.write(len(i[0]).to_bytes(4, 'big'))
+                f.write(i[0])
+                f.write(i[1])
+                f.write(b'\x00')
+    else:
+        conv = out
+        out = b''
+        for i in conv:
+            if type(i)==int:
+                out += bytes([i])
             else:
-                chunks.append([bytes(c_chunk), bytes([out[0][0]]) + out[0][1].encode()])
-                c_chunk = []
-            out = out[1:]
-        if len(c_chunk) != 0:
-            chunks.append([bytes(c_chunk), b''])
-        for i in chunks:
-            f.write(len(i[0]).to_bytes(4, 'big'))
-            f.write(i[0])
-            f.write(i[1])
-            f.write(b'\x00')
-else:
-    conv = out
-    out = b''
-    for i in conv:
-        if type(i)==int:
-            out += bytes([i])
-        else:
-            try:
-                out += names[i[1]].to_bytes(i[0], 'big')
-            except KeyError:
-                errormsg('?', "unknown symbol '"+i[1]+"'")
-    if not error_flag:
-        with open(ofn + '.bin', 'wb') as f:
-            f.write(out)
+                try:
+                    out += names[i[1]].to_bytes(i[0], 'big')
+                except KeyError:
+                    errormsg('?', "unknown symbol '"+i[1]+"'")
+        if not error_flag:
+            with open(ofn + '.bin', 'wb') as f:
+                f.write(out)
