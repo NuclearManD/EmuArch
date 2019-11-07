@@ -31,6 +31,7 @@ def token_gen(filedat):
         tokens = []
         tmp = ''
         inq = False
+        inbracket = False
         for i in ln:
             if i == '"':
                 inq = not inq
@@ -39,7 +40,14 @@ def token_gen(filedat):
                     tmp = ''
                 if inq:
                     tokens.append('"')
-            elif not inq:
+            elif (not inq) and (i == '[' or i == ']'):
+                inbracket = not inbracket
+                if tmp != '':
+                    tokens.append(tmp)
+                    tmp = ''
+                if inbracket:
+                    tmp = '['
+            elif (not inq) and (not inbracket):
                 if i.isspace() or i == ',':
                     if tmp != '':
                         tokens.append(tmp)
@@ -213,9 +221,50 @@ for tokens, linenum in token_gen(filedat):
             error_missing_arg(linenum, cmd)
         elif len(tokens) > 4:
             error_too_many_args(linenum, cmd)
+            print(tokens)
         else:
             size = MOV_OPS.index(cmd)
-            if tokens[-1] in regs:
+            if tokens[-1].startswith('['):
+                reg1 = regs[:16].index(tokens[-2])
+                if reg1 == -1:
+                    error_non_reg_arg(linenum, cmd, tokens[-2])
+                else:
+                    microtokens = tokens[-1][1:].replace('-', '+-').split('+')
+                    if len(microtokens) > 2 or len(microtokens) == 0:
+                        error_bad_arg(linenum, cmd, tokens[-1])
+                    else:
+                        if len(microtokens) == 1:
+                            microtokens.append('0') # default offset is 0
+                        microtokens[0] = microtokens[0].strip()
+                        microtokens[1] = microtokens[1].strip()
+                        reg2 = regs[:16].index(microtokens[0])
+                        if reg2 == -1:
+                            error_non_reg_arg(linenum, cmd, microtokens[0])
+                        else:
+                            emit(0b00100000 | size)
+                            emit((reg1 << 4) | reg2)
+                            wr16(parseint(microtokens[1]))
+            elif tokens[-2].startswith('['):
+                reg1 = regs[:16].index(tokens[-1])
+                if reg1 == -1:
+                    error_non_reg_arg(linenum, cmd, tokens[-1])
+                else:
+                    microtokens = tokens[-2][1:].replace('-', '+-').split('+')
+                    if len(microtokens) > 2 or len(microtokens) == 0:
+                        error_bad_arg(linenum, cmd, tokens[-2])
+                    else:
+                        if len(microtokens) == 1:
+                            microtokens.append('0') # default offset is 0
+                        microtokens[0] = microtokens[0].strip()
+                        microtokens[1] = microtokens[1].strip()
+                        reg2 = regs[:16].index(microtokens[0])
+                        if reg2 == -1:
+                            error_non_reg_arg(linenum, cmd, microtokens[0])
+                        else:
+                            emit(0b00100100 | size)
+                            emit((reg1 << 4) | reg2)
+                            wr16(parseint(microtokens[1]))
+            elif tokens[-1] in regs:
                 r1 = regs.index(tokens[1])
                 r2 = regs.index(tokens[2])
                 regcode = ((r1 << 4) & 0xF0) | (r2 & 15)

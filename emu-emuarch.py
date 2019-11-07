@@ -32,7 +32,7 @@ def syscall(val, cpu):
         out = heap_top
         mem_ptrs.append([out, qty])
         heap_top += qty
-        cpu.reg_set_0[0] = out
+        cpu.reg_set_0[0] = out | RAM_OFFSET
     elif val == SYS_FREE:
         ptr = cpu.reg_set_0[0]
         for n in range(len(mem_ptrs)):
@@ -71,6 +71,10 @@ def reg_set_bits(set):
         return 32
 def reg_set_unsigned_max(set):
     return 2**reg_set_bits(set) - 1
+def sign(b, n):
+    if n > 2**(b - 1):
+        n = -(2**b - n)
+    return n
 class emuarch_cpu:
     def __init__(self, code, stacksize = 8192):
         self.code = code
@@ -130,6 +134,7 @@ class emuarch_cpu:
     def readqword(self, addr):
         return self.readdword(addr) * 0x100000000 + self.readdword(addr + 4)
     def writebyte(self, addr, val):
+        o = addr
         offset = addr & OFFSET_MASK
         addr = addr & ADR_MASK
         val &= 255
@@ -137,6 +142,7 @@ class emuarch_cpu:
             if addr < len(ram):
                 ram[addr] = val
         elif offset == CODE_OFFSET:
+            print("WARN: Attempt to write code at", hex(o))
             if addr < len(self.code):
                 self.code[addr] = val
     def writeword(self, addr, val):
@@ -349,8 +355,33 @@ class emuarch_cpu:
                     # 0b001xxxxx
                     ## maybe?: # register-memory load/store
                     if not spec4:
-                        # reserved
-                        pass
+                        # 0b0010xxxx
+                        if size == 0:
+                            # mov[s] r1i, [r2i + **]
+                            size = opcode & 3
+
+                            rawreg = self.readbyte(pc)
+                            reg1 = rawreg >> 4
+                            reg2 = rawreg & 15
+                            pc += 1
+
+                            address = sign(16, self.readword(pc)) + self.getreg(reg2)
+                            pc += 2
+                            self.writereg(size, reg1, self.readsize(size, address))
+                            if reg1 == 7:
+                                pc = self.getreg(7)
+                        elif size == 1:
+                            # mov[s] [r2i + **], r1i
+                            size = opcode & 3
+
+                            rawreg = self.readbyte(pc)
+                            reg1 = rawreg >> 4
+                            reg2 = rawreg & 15
+                            pc += 1
+
+                            address = sign(16, self.readword(pc)) + self.getreg(reg2)
+                            self.writesize(size, address, self.getreg(reg1))
+                            pc += 2
                     else:
                         # reserved
                         pass

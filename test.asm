@@ -4,6 +4,7 @@ main:
 	movq	si, str_putstr_test
 	call	putstr
 	call	test_math
+	call	test_mov
 exit:
 	halt
 error:
@@ -14,6 +15,55 @@ str_error:
 	db "Error!\n", 0
 str_putstr_test:
 	db "putstr test\n", 0
+test_mov:
+	push	si
+	push	di
+	push	r0
+	push	r1
+	movq	si, .str_mov_test
+	call	putstr
+	movw	si, .str_loadmem
+	call	putstr
+
+	movq	rax, 128
+	call	malloc
+	
+	add	di, 64	; start in the middle so we can test negatives
+
+	movb	rax, 100
+	movq	[di], rax
+	movq	rbx, [di]
+	sub	rbx, 100
+	jnz rbx, error
+	
+	movb	rax, 66
+	movb	[di + 22], rax
+	movb	r1, [di + 22]
+	sub	r1, 66
+	jnz	r1, error
+	
+	movb	[di - 30], rax
+	sub di, 30
+	movb	r1, [di]
+	sub	r1, 66
+	jnz	r1, error
+	
+	movw	si, .str_mov_pass
+	call	putstr
+	
+	pop r1
+	pop r0
+	pop di
+	pop si
+	ret
+	
+.str_mov_test:
+	db "Mov test:\n", 0
+.str_loadmem:
+	db "Testing mov[s] r1i, [r2i + **] and mov[s] [r2i + **], r1i\n > Note: this test uses heap.  If that fails this will too.\n", 0
+.str_mov_pass:
+	db " $ MOV PASS OVERALL - NO ERRORS\n", 0
+
 
 test_math:
 	push	si
@@ -138,4 +188,13 @@ putstr:
 	jmp	.loop
 .done:
 	pop si
+	ret
+malloc:
+	push rax
+	syscall 0
+	movq di, rax
+	pop rax
+	ret
+free:
+	syscall 1
 	ret
