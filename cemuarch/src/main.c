@@ -61,5 +61,5 @@ int main(int argc, char** argv){
 	}
 
 	setup_memory(code_data, memory_size * 1024);
-	
+
 }
