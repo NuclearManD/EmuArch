@@ -15,7 +15,7 @@ typedef struct s_emuarch_cpu{
 
 t_emuarch_cpu* make_cpu(int64_t pc, int64_t sp);
 
-void step();
-void run();
+int step(t_emuarch_cpu* cpu);
+void run(t_emuarch_cpu* cpu);
 
 #endif
