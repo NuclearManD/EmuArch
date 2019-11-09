@@ -181,6 +181,7 @@ test_math:
 	db " $ MATH PASS OVERALL - NO ERRORS\n", 0
 putstr:
 	push si
+	xor rax, rax
 .loop:
 	lodb
 	jz	rax, .done

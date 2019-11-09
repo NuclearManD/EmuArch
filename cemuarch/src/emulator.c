@@ -232,11 +232,11 @@ int step(t_emuarch_cpu* cpu){
 						tmp1 = REG_BITS(reg1) >> 1;
 						data = data << (tmp1);
 						mask = mask << (tmp1);
-						printf("  foof\n");
+						//printf("  foof\n");
 					}
 					
 					mask ^= SIZE_TO_MASK(REG_SIZE(reg1));
-					printf("  %08lX -> reg %i\n", data, reg1);
+					//printf("  %08lX -> reg %i\n", data, reg1);
 					load_reg(cpu, reg1, (GETREG(cpu, reg1) & mask) | data);
 				}else if (tmp1 == 16){
 					// j[c] r1, @
