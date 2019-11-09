@@ -5,9 +5,8 @@ args=sys.argv
 if args[0].startswith('python'):
     args.pop(0)
 args.pop(0)
-if len(args) == 1:
+if len(args) == 0:
     args.append(input("input filename:"))
-    args.pop(0)
 ofn=args[0]
 if '-o' in args:
     i = args.index('-o') + 1
@@ -132,28 +131,28 @@ def wr64(x):
     if type(x)==str:
         emit(x)
         return
-    emit(((x>>56)+256)&255)
-    emit((x>>48)&255)
-    emit((x>>40)&255)
-    emit((x>>32)&255)
-    emit((x>>24)&255)
-    emit((x>>16)&255)
-    emit((x>>8)&255)
     emit(x&255)
+    emit((x>>8)&255)
+    emit((x>>16)&255)
+    emit((x>>24)&255)
+    emit((x>>32)&255)
+    emit((x>>40)&255)
+    emit((x>>48)&255)
+    emit(((x>>56)+256)&255)
 def wr32(x):
     if type(x)==str:
         emit(x, 4)
         return
-    emit(((x>>24)+256)&255)
-    emit((x>>16)&255)
-    emit((x>>8)&255)
     emit(x&255)
+    emit((x>>8)&255)
+    emit((x>>16)&255)
+    emit(((x>>24)+256)&255)
 def wr16(x):
     if type(x)==str:
         emit(x, 2)
         return
-    emit(((x>>8)+256)&255)
     emit(x&255)
+    emit(((x>>8)+256)&255)
 def wr_size(s, x):
     if s == 0:
         wr64(x)
@@ -450,9 +449,9 @@ if not error_flag:
     if '-eo' in args:
         # export object file
         with open(ofn + '.eo', 'wb') as f:
-            f.write(len(names.keys()).to_bytes(4, 'big'))
+            f.write(len(names.keys()).to_bytes(4, 'little'))
             for k, v in names.items():
-                f.write(v.to_bytes(8, 'big'))
+                f.write(v.to_bytes(8, 'little'))
                 f.write(k.encode())
                 f.write(b'\x00')
             f.flush()
@@ -468,7 +467,7 @@ if not error_flag:
             if len(c_chunk) != 0:
                 chunks.append([bytes(c_chunk), b''])
             for i in chunks:
-                f.write(len(i[0]).to_bytes(4, 'big'))
+                f.write(len(i[0]).to_bytes(4, 'little'))
                 f.write(i[0])
                 f.write(i[1])
                 f.write(b'\x00')
@@ -480,7 +479,7 @@ if not error_flag:
                 out += bytes([i])
             else:
                 try:
-                    out += names[i[1]].to_bytes(i[0], 'big')
+                    out += names[i[1]].to_bytes(i[0], 'little')
                 except KeyError:
                     errormsg('?', "unknown symbol '"+i[1]+"'")
         if not error_flag:
