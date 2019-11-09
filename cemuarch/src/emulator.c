@@ -2,12 +2,14 @@
 #include <stdlib.h>
 #include "emulator.h"
 #include "memory.h"
+#include "system.h"
 
 #define PC	reg_set_0[7]
 #define SP	reg_set_0[6]
 #define SI	reg_set_0[5]
 #define DI	reg_set_0[4]
-#define CNT	reg_set_1[7]
+#define CNT	reg_set_1[6]
+#define CR0	reg_set_1[7]
 
 #define GETREG(x, y) ((((y) & 0x18) == 0) ? (x)->reg_set_0[y & 7] : (x)->reg_set_1[y & 7])
 
@@ -37,6 +39,7 @@
 
 t_emuarch_cpu* make_cpu(int64_t pc, int64_t sp){
 	t_emuarch_cpu* cpu = malloc(sizeof(t_emuarch_cpu));
+	cpu->total_operations = 0;
 	cpu->PC = pc;
 	cpu->SP = sp;
 	return cpu;
@@ -55,6 +58,7 @@ int64_t alu(t_emuarch_cpu* cpu, uint8_t op, int64_t a, int64_t b){
 			break;
 		case OP_NOT:
 			a = ~a;
+			break;
 		case OP_SQRT:
 			; // NOT YET IMPLEMENTED
 		case OP_TANH:
@@ -83,13 +87,24 @@ int64_t alu(t_emuarch_cpu* cpu, uint8_t op, int64_t a, int64_t b){
 		default:
 			break;
 	}
-	// TODO: Set flags in crt0 register here
+	
+	cpu->CR0 &= 0xFF00;
+	cpu->CR0 |= EMULATOR_FEATURES;
+	if (a > 0)
+		cpu->CR0 |= 2;
+	else if(a < 0)
+		cpu->CR0 |= 1;
+	else
+		cpu->CR0 |= 4;
 
 	return a;
 }
 
 void throw_exception(t_emuarch_cpu* cpu, uint16_t exception_id){
-
+	
+	// TODO: Add interrupt support
+	cpu->CNT = exception_id;
+	cpu->PC = 0x10;
 }
 
 void load_reg(t_emuarch_cpu* cpu, uint8_t regid, int64_t data){
@@ -112,6 +127,28 @@ int64_t read_reg(t_emuarch_cpu* cpu, uint8_t size, uint8_t regid){
 	return GETREG(cpu, regid) & SIZE_TO_MASK(size);
 }
 
+int64_t pop_qword(t_emuarch_cpu* cpu){
+	int64_t data = ram_read_qword(cpu->SP + 1);
+	cpu->SP += 8;
+	return data;
+}
+
+int64_t pop_size(t_emuarch_cpu* cpu, uint8_t size){
+	int64_t data = ram_read_size(cpu->SP + 1, size);
+	cpu->SP += SIZE_TO_BYTES(size);
+	return data;
+}
+
+void push_size(t_emuarch_cpu* cpu, int64_t data, uint8_t size){
+	uint64_t adr = cpu->SP -= SIZE_TO_BYTES(size);
+	ram_write_size(adr + 1, data, size);
+}
+
+void push_qword(t_emuarch_cpu* cpu, int64_t data){
+	uint64_t adr = cpu->SP -= 8;
+	ram_write_qword(adr + 1, data);
+}
+
 int step(t_emuarch_cpu* cpu){
 	uint8_t reg_raw;
 	uint8_t reg1, reg2;
@@ -119,20 +156,105 @@ int step(t_emuarch_cpu* cpu){
 	uint8_t size;
 	int64_t tmp, tmp1, data;
 	uint64_t address;
+	uint64_t mask;
 
 	// first fetch an opcode
 	opcode = ram_read_byte(cpu->PC);
 	size = (opcode >> 2) & 3;
 	cpu->PC++;
+	
+	// increase instruction count counter
+	cpu->total_operations++;
 
 	// instruction decoding and execution...
 	if (opcode & 0x80){
 		// 0b1xxxxxxx
+		tmp1 = opcode & 0x1F;
 		if (opcode & 0x40){
 			// 0b11xxxxxx
-
+			if (opcode & 0x20){
+				// 0b111xxxxx
+				if (tmp1 == 0){
+					cpu->PC = ram_read_qword(cpu->PC);
+				}else if (tmp1 == 0x1F){
+					return -1;
+				}
+			}else{
+				// 0b110xxxxx
+				if ((tmp1 & 0x13) == 0x00){
+					address = GETREG(cpu, 4);
+					write_reg(cpu, size, 0, ram_read_size(address, size));
+				}
+			}
 		}else{
 			// 0b10xxxxxx
+			if (opcode & 0x20){
+				// 0b101xxxxx
+				// CISC stack ops
+				if (tmp1 == 0){
+					// pop r1
+					reg1 = ram_read_byte(cpu->PC) & 0x1F;
+					cpu->PC++;
+					
+					load_reg(cpu, reg1, pop_size(cpu, REG_SIZE(reg1)));
+				}else if (tmp1 == 1){
+					// push r1
+					reg1 = ram_read_byte(cpu->PC) & 0x1F;
+					cpu->PC++;
+					
+					push_size(cpu, GETREG(cpu, reg1), REG_SIZE(reg1));
+				}else if (tmp1 == 2){
+					// call @
+					push_qword(cpu, cpu->PC + 8);
+					cpu->PC = ram_read_qword(cpu->PC);
+				}
+			}else{
+				// 0b100xxxxx
+				if (tmp1 == 0){
+					// syscall **
+					syscall(cpu, ram_read_word(cpu->PC));
+					cpu->PC += 2;
+				}else if (tmp1 == 1){
+					// mov[s] <msb reverse bit> r1, ?
+					reg_raw = ram_read_byte(cpu->PC) & 0x1F;
+					cpu->PC++;
+					
+					reg1 = reg_raw & 0x1F;
+					size = (reg_raw >> 5) & 3;
+					mask = SIZE_TO_MASK(size);
+					
+					data = ram_read_size(cpu->PC, size);
+					cpu->PC += SIZE_TO_BYTES(size);
+					
+					if (reg_raw & 7){
+						tmp1 = REG_BITS(reg1)/2;
+						data = data << (tmp1);
+						mask = mask << (tmp1);
+					}
+					
+					mask ^= SIZE_TO_MASK(REG_SIZE(reg1));
+					load_reg(cpu, reg1, (GETREG(cpu, reg1) & mask) | data);
+				}else if (tmp1 == 16){
+					// j[c] r1, @
+					reg_raw = ram_read_byte(cpu->PC) & 0x1F;
+					
+					tmp = GETREG(cpu, reg_raw & 0x0F);
+					
+					if ((reg_raw >> 4) == 0){
+						// jz r1, @
+						if (tmp == 0)
+							cpu->PC = ram_read_qword(cpu->PC + 1);
+						else
+							cpu->PC += 9;
+					}else{
+						// jnz r1, @
+						if (tmp != 0)
+							cpu->PC = ram_read_qword(cpu->PC + 1);
+						else
+							cpu->PC += 9;
+					}
+				}
+			}
 		}
 	}else{
 		// 0b0xxxxxxx
@@ -243,8 +365,9 @@ int step(t_emuarch_cpu* cpu){
 			}
 		}
 	}
+	return 0;
 }
 
 void run(t_emuarch_cpu* cpu){
-
+	while (step(cpu) == 0);
 }

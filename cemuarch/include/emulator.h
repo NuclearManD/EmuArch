@@ -5,10 +5,10 @@
 #include <stdint.h>
 
 // I am not yet implementing support for floats
-#define EMULATOR_FEATURES 0x000
+#define EMULATOR_FEATURES 0x00000
 
 typedef struct s_emuarch_cpu{
-	int32_t	reg_set_0[8];
+	int64_t	reg_set_0[8];
 	int32_t	reg_set_1[8];
 	uint64_t total_operations;
 }	t_emuarch_cpu;

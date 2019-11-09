@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include "argparse.h"
 #include "memory.h"
+#include "emulator.h"
 
 void* read_file(char* filename){
 	void* filedata = NULL;
@@ -40,6 +41,7 @@ int main(int argc, char** argv){
 	void*	code_data;
 	int i;
 	int memory_size = 64;
+	t_emuarch_cpu* cpu;
 
 	argsort(argc, argv, dual_ops);
 
@@ -60,6 +62,8 @@ int main(int argc, char** argv){
 		return -404;
 	}
 
-	setup_memory(code_data, memory_size * 1024);
-
+	memory_size *= 1024;
+	setup_memory(code_data, memory_size);
+	cpu = make_cpu(0, (memory_size - 1) | RAM_OFFSET);
+	run(cpu);
 }
