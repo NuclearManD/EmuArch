@@ -353,7 +353,6 @@ class emuarch_cpu:
                         pass
                 else:
                     # 0b001xxxxx
-                    ## maybe?: # register-memory load/store
                     if not spec4:
                         # 0b0010xxxx
                         if size == 0:
