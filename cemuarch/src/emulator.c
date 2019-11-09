@@ -1,13 +1,14 @@
 
 #include <stdlib.h>
+#include <stdio.h>
 #include "emulator.h"
 #include "memory.h"
 #include "system.h"
 
 #define PC	reg_set_0[7]
 #define SP	reg_set_0[6]
-#define SI	reg_set_0[5]
-#define DI	reg_set_0[4]
+#define SI	reg_set_0[4]
+#define DI	reg_set_0[5]
 #define CNT	reg_set_1[6]
 #define CR0	reg_set_1[7]
 
@@ -160,6 +161,7 @@ int step(t_emuarch_cpu* cpu){
 
 	// first fetch an opcode
 	opcode = ram_read_byte(cpu->PC);
+	//printf("%08lX > %02hhX\n", cpu->PC, opcode);
 	size = (opcode >> 2) & 3;
 	cpu->PC++;
 	
@@ -182,8 +184,8 @@ int step(t_emuarch_cpu* cpu){
 			}else{
 				// 0b110xxxxx
 				if ((tmp1 & 0x13) == 0x00){
-					address = GETREG(cpu, 4);
-					write_reg(cpu, size, 0, ram_read_size(address, size));
+					write_reg(cpu, size, 0, ram_read_size(cpu->SI, size));
+					cpu->SI+=SIZE_TO_BYTES(size);
 				}
 			}
 		}else{
@@ -216,7 +218,7 @@ int step(t_emuarch_cpu* cpu){
 					cpu->PC += 2;
 				}else if (tmp1 == 1){
 					// mov[s] <msb reverse bit> r1, ?
-					reg_raw = ram_read_byte(cpu->PC) & 0x1F;
+					reg_raw = ram_read_byte(cpu->PC);
 					cpu->PC++;
 					
 					reg1 = reg_raw & 0x1F;
@@ -226,17 +228,19 @@ int step(t_emuarch_cpu* cpu){
 					data = ram_read_size(cpu->PC, size);
 					cpu->PC += SIZE_TO_BYTES(size);
 					
-					if (reg_raw & 7){
-						tmp1 = REG_BITS(reg1)/2;
+					if (reg_raw & 128){
+						tmp1 = REG_BITS(reg1) >> 1;
 						data = data << (tmp1);
 						mask = mask << (tmp1);
+						printf("  foof\n");
 					}
 					
 					mask ^= SIZE_TO_MASK(REG_SIZE(reg1));
+					printf("  %08lX -> reg %i\n", data, reg1);
 					load_reg(cpu, reg1, (GETREG(cpu, reg1) & mask) | data);
 				}else if (tmp1 == 16){
 					// j[c] r1, @
-					reg_raw = ram_read_byte(cpu->PC) & 0x1F;
+					reg_raw = ram_read_byte(cpu->PC);
 					
 					tmp = GETREG(cpu, reg_raw & 0x0F);
 					
