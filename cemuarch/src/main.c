@@ -33,15 +33,23 @@ void print_usage(char* program_name){
 	printf("Options:\n");
 	printf("\t-c [codefile]\t: Specify raw binary file of program to load. Required.\n");
 	printf("\t-mem [RAM size]\t: Specify RAM size, in KiB.  Defaults to 64.\n");
+	printf("\t-d\t\t\t: Use debug terminal.\n");
 }
 
 int main(int argc, char** argv){
-	char*	dual_ops[] = {"-c", "-mem"};
-	char*	codefile_name;
-	void*	code_data;
-	int i;
-	int memory_size = 64;
-	t_emuarch_cpu* cpu;
+	char*			dual_ops[] = {"-c", "-mem", 0};
+	char*			regnames[] = {
+		"rax", "rbx", "rcx", "rdx",
+		"si", "di", "sp", "pc",
+		"r0", "r1", "r2", "r3", "r4", "r5", "cnt", "cr0"
+	};
+	char*			codefile_name;
+	void*			code_data;
+	int				i;
+	char			c;
+	int				memory_size = 64;
+	int64_t			stack_ptr;
+	t_emuarch_cpu*	cpu;
 
 	argsort(argc, argv, dual_ops);
 
@@ -65,5 +73,53 @@ int main(int argc, char** argv){
 	memory_size *= 1024;
 	setup_memory(code_data, memory_size);
 	cpu = make_cpu(0, (memory_size - 1) | RAM_OFFSET);
-	run(cpu);
+
+	if (get_arg(argc, argv, "-d") == -1)
+		run(cpu);
+	else{
+		printf("Running in debug mode.\n");
+		printf("Type h for help.\n");
+		while (1){
+			printf("> ");
+			fflush(stdout);
+			fread(&c, 1, 1, stdin);
+			fread(&i, 1, 1, stdin);
+			if (c == 'h'){
+				printf(" s : step CPU\n r : run CPU\n p : print registers\n d : data/statistics\n o : step over\n n : print next opcode\n");
+			}else if (c == 's'){
+				printf(" 0x%016llX | ", cpu->reg_set_0[7]);
+				i = step(cpu);
+				if (i != -1)
+					printf(" Opcode 0x%02hhX executed.\n", (char)(0xFF & i));
+				else
+					printf(" CPU Halted : opcode 0xFF.\n");
+			}else if (c == 'p'){
+				printf(" CPU registers:\n");
+				for (i = 0; i < 8; i++)
+					printf("  Reg %s\t| 0x%016llX\n", regnames[i], cpu->reg_set_0[i]);
+				for (i = 0; i < 8; i++)
+					printf("  Reg %s\t| 0x%08X\n", regnames[i + 8], cpu->reg_set_1[i]);
+			}else if (c == 'r'){
+				run(cpu);
+			}else if (c == 'd'){
+				printf(" Total operations executed: %llu\n", cpu->total_operations);
+			}else if (c == 'n'){
+				printf(" 0x%016llX | 0x%02hhX\n", cpu->reg_set_0[7], ram_read_byte(cpu->reg_set_0[7]));
+			}else if (c == 'o'){
+				stack_ptr = cpu->reg_set_0[6];
+				printf(" Stack pointer: 0x%016llX\n", stack_ptr);
+				while (1){
+					i = step(cpu);
+					if (i == -1){
+						printf(" Stop: CPU Halted.\n");
+						break;
+					}else if (cpu->reg_set_0[6] >= stack_ptr){
+						if (cpu->reg_set_0[6] != stack_ptr)
+							printf(" Warning: stack pointer no longer matches.\n  New value: 0x%016llX\n", cpu->reg_set_0[6]);
+						break;
+					}
+				}
+			}
+		}
+	}
 }

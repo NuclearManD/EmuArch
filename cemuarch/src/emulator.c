@@ -16,7 +16,7 @@
 
 #define REG_SIZE(x)			(((x) >> 3) & 1)
 #define SIZE_TO_BYTES(x)	(1 << (3 - (x)))
-#define SIZE_TO_MASK(x)		((1 << (8 * (4 - (x)))) - 1)
+#define SIZE_TO_MASK(x)		(0xFFFFFFFFFFFFFFFFULL >> (64 - (8 << (3 - (x)))))
 #define REG_BITS(x)			(((x) & 8) ? 32 : 64)
 
 #define ERROR_INVALID_INSTRUCTION -100
@@ -69,6 +69,8 @@ Cool completely.
 Cooks notes:
 Pie can be baked 1 day ahead and chilled. Bring to room temperature before
 serving.
+
+Source: 42 Silicon Valley, C Piscine Rush02 subject
 */
 
 t_emuarch_cpu* make_cpu(int64_t pc, int64_t sp){
@@ -210,13 +212,16 @@ int step(t_emuarch_cpu* cpu){
 			if (opcode & 0x20){
 				// 0b111xxxxx
 				if (tmp1 == 0){
+					// jmp @
 					cpu->PC = ram_read_qword(cpu->PC);
 				}else if (tmp1 == 0x1F){
+					// halt
 					return -1;
 				}
 			}else{
 				// 0b110xxxxx
 				if ((tmp1 & 0x13) == 0x00){
+					// lod[s]
 					write_reg(cpu, size, 0, ram_read_size(cpu->SI, size));
 					cpu->SI+=SIZE_TO_BYTES(size);
 				}
@@ -269,7 +274,8 @@ int step(t_emuarch_cpu* cpu){
 					}
 					
 					mask ^= SIZE_TO_MASK(REG_SIZE(reg1));
-					//printf("  %08lX -> reg %i\n", data, reg1);
+					//printf("  %016llX OR ((%016llX XOR %016llX) AND %016llX) -> reg %i\n", 
+					//	data, SIZE_TO_MASK(REG_SIZE(reg1)), SIZE_TO_MASK(size), GETREG(cpu, reg1), reg1);
 					load_reg(cpu, reg1, (GETREG(cpu, reg1) & mask) | data);
 				}else if (tmp1 == 16){
 					// j[c] r1, @
@@ -402,9 +408,9 @@ int step(t_emuarch_cpu* cpu){
 			}
 		}
 	}
-	return 0;
+	return opcode;
 }
 
 void run(t_emuarch_cpu* cpu){
-	while (step(cpu) == 0);
+	while (step(cpu) >= 0);
 }
