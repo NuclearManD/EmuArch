@@ -12,7 +12,7 @@
 #define CNT	reg_set_1[6]
 #define CR0	reg_set_1[7]
 
-#define GETREG(x, y) ((((y) & 0x18) == 0) ? (x)->reg_set_0[y & 7] : (x)->reg_set_1[y & 7])
+#define GETREG(x, y) ((((y) & 0x18) == 0) ? (x)->reg_set_0[y] : (x)->reg_set_1[y & 7])
 
 #define REG_SIZE(x)			(((x) >> 3) & 1)
 #define SIZE_TO_BYTES(x)	(1 << (3 - (x)))
@@ -163,17 +163,27 @@ void load_reg(t_emuarch_cpu* cpu, uint8_t regid, int64_t data){
 }
 
 void write_reg(t_emuarch_cpu* cpu, uint8_t size, uint8_t regid, int64_t data){
-	uint64_t content = GETREG(cpu, regid);
-	
-	content &= (0xFFFFFFFFFFFFFFFFUL ^ SIZE_TO_MASK(size));
-	content |= data;
+	uint64_t content;
 
-	load_reg(cpu, regid, content);
+	if (regid & 8){
+		regid &= 7;
+		content = cpu->reg_set_1[regid] & (0xFFFFFFFF ^ SIZE_TO_MASK(size));
+		cpu->reg_set_1[regid] = content | data;
+	}else{
+		content = cpu->reg_set_0[regid] & (0xFFFFFFFFFFFFFFFFUL ^ SIZE_TO_MASK(size));
+		cpu->reg_set_0[regid] = data | content;
+	}
 }
+
+/*
+
+Function unessecary - do not use.
 
 int64_t read_reg(t_emuarch_cpu* cpu, uint8_t size, uint8_t regid){
 	return GETREG(cpu, regid) & SIZE_TO_MASK(size);
 }
+
+*/
 
 int64_t pop_qword(t_emuarch_cpu* cpu){
 	int64_t data = ram_read_qword(cpu->SP + 1);
@@ -209,7 +219,6 @@ int step(t_emuarch_cpu* cpu){
 	// first fetch an opcode
 	opcode = ram_read_byte(cpu->PC);
 	//printf("%08lX > %02hhX\n", cpu->PC, opcode);
-	size = (opcode >> 2) & 3;
 	cpu->PC++;
 	
 	// increase instruction count counter
@@ -234,6 +243,7 @@ int step(t_emuarch_cpu* cpu){
 				// 0b110xxxxx
 				if ((tmp1 & 0x13) == 0x00){
 					// lod[s]
+					size = (opcode >> 2) & 3;
 					write_reg(cpu, size, 0, ram_read_size(cpu->SI, size));
 					cpu->SI+=SIZE_TO_BYTES(size);
 				}
@@ -359,6 +369,7 @@ int step(t_emuarch_cpu* cpu){
 					// 0b0011xxxx (0x3X)
 				}else{
 					// 0b0010xxxxx (0x2X)
+					size = (opcode >> 2) & 3;
 					if (size == 0){
 						// mov[s] r1i, [r2i + **]
 						size = opcode & 3;
@@ -389,6 +400,7 @@ int step(t_emuarch_cpu* cpu){
 				// 0b000xxxxx
 				if (opcode & 0x10){
 					// 0b0001xxxx (0x1X)
+					size = (opcode >> 2) & 3;
 					switch(size){
 						case 0:
 							// exx r1, r2
@@ -416,6 +428,7 @@ int step(t_emuarch_cpu* cpu){
 							throw_exception(cpu, ERROR_INVALID_INSTRUCTION);
 					}
 				}else{
+					size = (opcode >> 2) & 3;
 					reg_raw = ram_read_byte(cpu->PC);
 					cpu->PC++;
 					reg1 = ((opcode & 2) << 3) | (reg_raw >> 4);
