@@ -294,7 +294,7 @@ int step(t_emuarch_cpu* cpu){
 				switch(tmp1){
 					case 0:
 						// syscall **
-						syscall(cpu, ram_read_word(cpu->PC));
+						emuarch_syscall(cpu, ram_read_word(cpu->PC));
 						cpu->PC += 2;
 						break;
 					case 1:

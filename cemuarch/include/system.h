@@ -9,7 +9,12 @@
 #define SYSCALL_PUTCHAR	2
 #define SYSCALL_PRINTF	3
 #define SYSCALL_PUTSTR	4
+#define SYSCALL_MILLIS	5
+#define SYSCALL_MICROS	6
 
-void syscall(t_emuarch_cpu* cpu, int16_t call_num);
+uint64_t micros();
+uint64_t millis();
+
+void emuarch_syscall(t_emuarch_cpu* cpu, int16_t call_num);
 
 #endif

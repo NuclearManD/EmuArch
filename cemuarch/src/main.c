@@ -1,11 +1,11 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/time.h>
 #include <stdint.h>
 #include "argparse.h"
 #include "memory.h"
 #include "emulator.h"
+#include "system.h"
 
 void* read_file(char* filename){
 	void* filedata = NULL;
@@ -37,12 +37,6 @@ void print_usage(char* program_name){
 	printf("\t-mem [RAM size]\t: Specify RAM size, in KiB.  Defaults to 64.\n");
 	printf("\t-d\t\t\t: Use debug terminal.\n");
 	printf("\t-s\t\t\t: Print stats after run.  Ignored with -d.\n");
-}
-
-uint64_t micros(){
-	struct timeval tv;
-	gettimeofday(&tv,NULL);
-	return (1000000*tv.tv_sec) + tv.tv_usec;
 }
 
 int main(int argc, char** argv){
