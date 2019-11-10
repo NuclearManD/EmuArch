@@ -1,6 +1,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/time.h>
+#include <stdint.h>
 #include "argparse.h"
 #include "memory.h"
 #include "emulator.h"
@@ -34,6 +36,13 @@ void print_usage(char* program_name){
 	printf("\t-c [codefile]\t: Specify raw binary file of program to load. Required.\n");
 	printf("\t-mem [RAM size]\t: Specify RAM size, in KiB.  Defaults to 64.\n");
 	printf("\t-d\t\t\t: Use debug terminal.\n");
+	printf("\t-s\t\t\t: Print stats after run.  Ignored with -d.\n");
+}
+
+uint64_t micros(){
+	struct timeval tv;
+	gettimeofday(&tv,NULL);
+	return (1000000*tv.tv_sec) + tv.tv_usec;
 }
 
 int main(int argc, char** argv){
@@ -49,6 +58,7 @@ int main(int argc, char** argv){
 	char			c;
 	int				memory_size = 64;
 	int64_t			stack_ptr;
+	uint64_t		us_timer;
 	t_emuarch_cpu*	cpu;
 
 	argsort(argc, argv, dual_ops);
@@ -74,9 +84,16 @@ int main(int argc, char** argv){
 	setup_memory(code_data, memory_size);
 	cpu = make_cpu(0, (memory_size - 1) | RAM_OFFSET);
 
-	if (get_arg(argc, argv, "-d") == -1)
+	if (get_arg(argc, argv, "-d") == -1){
+		us_timer = micros();
 		run(cpu);
-	else{
+		us_timer = micros() - us_timer;
+		if (get_arg(argc, argv, "-s") != -1){
+			printf("\n\nProgram statistics:\n");
+			printf("  Operations executed: %lli\n", cpu->total_operations);
+			printf("  Execution time (us): %lli\n", us_timer);
+		}
+	}else{
 		printf("Running in debug mode.\n");
 		printf("Type h for help.\n");
 		while (1){

@@ -7,6 +7,10 @@
 void* global_code;
 void* global_ram;
 
+char* adr_to_str(int64_t address){
+	return (char*)DECODE_ADR(address);
+}
+
 void setup_memory(void* code, uint32_t ram_size){
 	global_ram = malloc(ram_size);
 	global_code = code;

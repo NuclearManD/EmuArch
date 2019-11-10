@@ -10,6 +10,8 @@
 
 void setup_memory(void* code, uint32_t ram_size);
 
+char* adr_to_str(int64_t address);
+
 int8_t	ram_read_byte(uint64_t address);
 int16_t	ram_read_word(uint64_t address);
 int32_t	ram_read_dword(uint64_t address);

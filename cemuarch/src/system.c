@@ -20,5 +20,7 @@ void syscall(t_emuarch_cpu* cpu, int16_t id){
 		
 	}else if (id == SYSCALL_PRINTF){
 		
+	}else if (id == SYSCALL_PUTSTR){
+		printf("%s", adr_to_str(cpu->reg_set_0[4]));
 	}
 }

@@ -181,15 +181,7 @@ test_math:
 .str_math_pass:
 	db " $ MATH PASS OVERALL - NO ERRORS\n", 0
 putstr:
-	push si
-	xor rax, rax
-.loop:
-	lodb
-	jz	rax, .done
-	syscall	2
-	jmp	.loop
-.done:
-	pop si
+	syscall 4
 	ret
 malloc:
 	push rax
