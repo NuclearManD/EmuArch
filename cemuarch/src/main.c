@@ -92,6 +92,7 @@ int main(int argc, char** argv){
 			printf("\n\nProgram statistics:\n");
 			printf("  Operations executed: %lli\n", cpu->total_operations);
 			printf("  Execution time (us): %lli\n", us_timer);
+			printf("  Operations / second: %f Million\n", ((float)cpu->total_operations) / us_timer);
 		}
 	}else{
 		printf("Running in debug mode.\n");
