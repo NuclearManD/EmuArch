@@ -1,5 +1,5 @@
 CC = gcc
-FLAGS = -Iinclude -Wall -Wextra -Werror -Wno-unused-result -Wno-error=format=
+FLAGS = -Iinclude -Wall -Wextra -Werror -Wno-unknown-warning-option -Wno-unused-result -Wno-error=format=
 
 testbench:
 	mkdir -p bin
