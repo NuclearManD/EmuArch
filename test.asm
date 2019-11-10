@@ -37,6 +37,7 @@ test_mov:
 	jnz rbx, error
 	
 	movb	rax, 66
+	movd	r1, 0
 	movb	[di + 22], rax
 	movb	r1, [di + 22]
 	sub	r1, 66

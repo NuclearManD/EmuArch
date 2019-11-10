@@ -36,6 +36,9 @@
 #define OP_OR	0x15
 #define OP_XOR	0x16
 #define OP_CMP	0x17
+#define OP_LSH	0x1C
+#define OP_RSH	0x1D
+#define OP_RAS	0x1E
 
 /*
 Here is a old-fashioned pecan pie recipe for you :
@@ -116,6 +119,15 @@ int64_t alu(t_emuarch_cpu* cpu, uint8_t op, int64_t a, int64_t b){
 			break;
 		case OP_ADD:
 			a += b;
+			break;
+		case OP_RAS:
+			a = a >> b;
+			break;
+		case OP_LSH:
+			a = a << b;
+			break;
+		case OP_RSH:
+			a = (int64_t)((uint64_t)a >> b);
 			break;
 		case OP_SUB:
 		case OP_CMP:
@@ -347,9 +359,9 @@ int step(t_emuarch_cpu* cpu){
 					// 0b0011xxxx (0x3X)
 				}else{
 					// 0b0010xxxxx (0x2X)
-					size = opcode & 3;
 					if (size == 0){
 						// mov[s] r1i, [r2i + **]
+						size = opcode & 3;
 						reg_raw = ram_read_byte(cpu->PC);
 						reg1 = reg_raw >> 4;
 						reg2 = reg_raw & 15;
@@ -360,6 +372,7 @@ int step(t_emuarch_cpu* cpu){
 						write_reg(cpu, size, reg1, ram_read_size(address, size));
 					}else if (size == 1){
 						// mov[s] [r2i + **], r1i
+						size = opcode & 3;
 						reg_raw = ram_read_byte(cpu->PC);
 						reg1 = reg_raw >> 4;
 						reg2 = reg_raw & 15;
@@ -403,7 +416,13 @@ int step(t_emuarch_cpu* cpu){
 							throw_exception(cpu, ERROR_INVALID_INSTRUCTION);
 					}
 				}else{
-
+					reg_raw = ram_read_byte(cpu->PC);
+					cpu->PC++;
+					reg1 = ((opcode & 2) << 3) | (reg_raw >> 4);
+					reg2 = ((opcode & 1) << 4) | (reg_raw & 15);
+					data = GETREG(cpu, reg2) & SIZE_TO_MASK(size);
+					data |= GETREG(cpu, reg1) & (SIZE_TO_MASK(REG_SIZE(reg1)) ^ SIZE_TO_MASK(size));
+					load_reg(cpu, reg1, data);
 				}
 			}
 		}
