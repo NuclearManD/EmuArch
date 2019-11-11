@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include "emulator.h"
+#include "flow_and_shape.h"
 #include "memory.h"
 #include "system.h"
 
@@ -226,6 +227,19 @@ void push_qword(t_emuarch_cpu* cpu, int64_t data){
 	ram_write_qword(adr + 1, data);
 }
 
+void flow_ops(t_emuarch_cpu* cpu){
+	uint8_t subop = ram_read_byte(cpu->PC);
+	cpu->PC++;
+	if (subop == 0x00){
+		cpu->PC += 8;
+		run_flow(cpu->reg_set_0, cpu->reg_set_1, ram_read_qword(cpu->PC - 8));
+	}else if(subop == 0x01){
+		run_flow(cpu->reg_set_0, cpu->reg_set_1, cpu->SI);
+	}else{
+		throw_exception(cpu, ERROR_INVALID_INSTRUCTION);
+	}
+}
+
 int step(t_emuarch_cpu* cpu){
 	uint8_t reg_raw;
 	uint8_t reg1, reg2;
@@ -254,6 +268,9 @@ int step(t_emuarch_cpu* cpu){
 				if (tmp1 == 0){
 					// jmp @
 					cpu->PC = ram_read_qword(cpu->PC);
+				}else if (tmp1 == 0x0B){
+					// [FLOW OPS]
+					flow_ops(cpu);
 				}else if (tmp1 == 0x1F){
 					// halt
 					return -1;
