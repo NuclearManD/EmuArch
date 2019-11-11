@@ -8,6 +8,9 @@
 #define RAM_OFFSET	0x80000000
 #define MAX_RAM_SIZE RAM_OFFSET
 
+extern void* global_code;
+extern void* global_ram;
+
 #define DECODE_ADR(x) (((x) < RAM_OFFSET) ? (global_code + (x)) : (global_ram + (x) - RAM_OFFSET))
 
 void setup_memory(void* code, uint32_t ram_size);
