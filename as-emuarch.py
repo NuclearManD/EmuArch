@@ -192,6 +192,8 @@ JCON_OPS = ['jz', 'jnz']
 ONE_ARG_MATH_OPS = ['inc', 'dec', 'neg', 'not', 'sqrt', 'tanh']
 TWO_ARG_MATH_OPS = ['add', 'sub', 'mul', 'div', 'and', 'or', 'xor', 'cmp',
                     None, None, None, None, 'lsh', 'rsh', 'ras', None]
+FLOW_OPS = ['inc', 'dec', 'neg', 'not', 'add', 'sub', 'mul', 'div',
+            'and', 'or',  'xor', 'shl', 'shr', 'sar']
 
 lslbl = ''
 
@@ -224,12 +226,45 @@ for tokens, linenum in token_gen(filedat):
             else:
                 emit(parseint(tokens[i]))
             i += 1
+    elif cmd == '.end_flow':
+        wr16(0xFF80)
+    elif cmd == '.flow':
+        if len(tokens) < 3:
+            error_missing_arg(linenum, cmd)
+        else:
+            op = FLOW_OPS.index(tokens[1])
+            if op == -1:
+                error_bad_arg(linenum, cmd, tokens[1])
+            else:
+                reg1 = regs[:16].index(tokens[2])
+                if len(tokens) > 3:
+                    reg2 = regs[:16].index(tokens[3])
+                else:
+                    reg2 = 0
+                if reg1 == -1:
+                    error_non_reg_arg(linenum, cmd, tokens[2])
+                elif reg2 == -1:
+                    error_non_reg_arg(linenum, cmd, tokens[3])
+                else:
+                    wr16((op << 8) | (reg2 << 4) | reg1)
+    elif cmd == "flow":
+        if len(tokens) < 2:
+            error_missing_arg(linenum, cmd)
+        elif len(tokens) > 2:
+            error_too_many_args(linenum, cmd)
+        else:
+            if tokens[1] == 'si':
+                emit(0xEB)
+                emit(0x01)
+            else:
+                emit(0xEB)
+                emit(0x00)
+                wr64(parseint(tokens[1]))
     elif cmd in MOV_OPS:
         if len(tokens) < 3:
             error_missing_arg(linenum, cmd)
         elif len(tokens) > 4:
             error_too_many_args(linenum, cmd)
-            print(tokens)
         else:
             size = MOV_OPS.index(cmd)
             if tokens[-1].startswith('['):

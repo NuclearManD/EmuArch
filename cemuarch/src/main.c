@@ -84,8 +84,8 @@ int main(int argc, char** argv){
 		us_timer = micros() - us_timer;
 		if (get_arg(argc, argv, "-s") != -1){
 			printf("\n\nProgram statistics:\n");
-			printf("  Operations executed: %lli\n", cpu->total_operations);
-			printf("  Execution time (us): %lli\n", us_timer);
+			printf("  Operations executed: %lli\n", (long long int)cpu->total_operations);
+			printf("  Execution time (us): %lli\n", (long long int)us_timer);
 			printf("  Operations / second: %f Million\n", ((float)cpu->total_operations) / us_timer);
 		}
 	}else{
@@ -99,7 +99,7 @@ int main(int argc, char** argv){
 			if (c == 'h'){
 				printf(" s : step CPU\n r : run CPU\n p : print registers\n d : data/statistics\n o : step over\n n : print next opcode\n");
 			}else if (c == 's'){
-				printf(" 0x%016llX | ", cpu->reg_set_0[7]);
+				printf(" 0x%016llX | ", (long long int)cpu->reg_set_0[7]);
 				i = step(cpu);
 				if (i != -1)
 					printf(" Opcode 0x%02hhX executed.\n", (char)(0xFF & i));
@@ -108,18 +108,18 @@ int main(int argc, char** argv){
 			}else if (c == 'p'){
 				printf(" CPU registers:\n");
 				for (i = 0; i < 8; i++)
-					printf("  Reg %s\t| 0x%016llX\n", regnames[i], cpu->reg_set_0[i]);
+					printf("  Reg %s\t| 0x%016llX\n", regnames[i], (long long int)cpu->reg_set_0[i]);
 				for (i = 0; i < 8; i++)
 					printf("  Reg %s\t| 0x%08X\n", regnames[i + 8], cpu->reg_set_1[i]);
 			}else if (c == 'r'){
 				run(cpu);
 			}else if (c == 'd'){
-				printf(" Total operations executed: %llu\n", cpu->total_operations);
+				printf(" Total operations executed: %llu\n", (long long unsigned int)cpu->total_operations);
 			}else if (c == 'n'){
-				printf(" 0x%016llX | 0x%02hhX\n", cpu->reg_set_0[7], ram_read_byte(cpu->reg_set_0[7]));
+				printf(" 0x%016llX | 0x%02hhX\n", (long long int)cpu->reg_set_0[7], ram_read_byte(cpu->reg_set_0[7]));
 			}else if (c == 'o'){
 				stack_ptr = cpu->reg_set_0[6];
-				printf(" Stack pointer: 0x%016llX\n", stack_ptr);
+				printf(" Stack pointer: 0x%016llX\n", (long long int)stack_ptr);
 				while (1){
 					i = step(cpu);
 					if (i == -1){
@@ -127,7 +127,7 @@ int main(int argc, char** argv){
 						break;
 					}else if (cpu->reg_set_0[6] >= stack_ptr){
 						if (cpu->reg_set_0[6] != stack_ptr)
-							printf(" Warning: stack pointer no longer matches.\n  New value: 0x%016llX\n", cpu->reg_set_0[6]);
+							printf(" Warning: stack pointer no longer matches.\n  New value: 0x%016llX\n", (long long int)cpu->reg_set_0[6]);
 						break;
 					}
 				}

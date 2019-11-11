@@ -6,19 +6,22 @@ void run_flow(int64_t*	regs0, int32_t*	regs1, int64_t address)
 {
 	uint16_t*	flow = (uint16_t*)DECODE_ADR(address);
 	uint16_t	current;
-	uint8_t		reg1, set;
+	uint8_t		reg1;
 	int64_t		a, b;
 
-	while ((current = *flow) != 0xFC00){
-		reg1 = current & 7;
-		if ((set = (current >> 6) & 1) == 0){
+	while ((current = *flow) != 0xFF80){
+		reg1 = current & 15;
+		if (reg1 < 8){
 			a = regs0[reg1];
-			b = regs0[(current >> 3) & 7];
 		} else {
-			a = regs1[reg1];
-			b = regs1[(current >> 3) & 7];
+			a = regs1[reg1 & 7];
 		}
-		switch (current >> 7){
+		if (((current >> 7) & 1) == 0){
+			b = regs0[(current >> 4) & 7];
+		} else {
+			b = regs1[(current >> 4) & 7];
+		}
+		switch (current >> 8){
 			case 0x00:
 				a++;
 				break;
@@ -64,10 +67,10 @@ void run_flow(int64_t*	regs0, int32_t*	regs1, int64_t address)
 			default:
 				break;
 		}
-		if ((set = (current >> 6) & 1) == 0)
+		if (reg1 < 8)
 			regs0[reg1] = a;
 		else
-			regs1[reg1] = (int32_t)a;
-		flow += 2;
+			regs1[reg1 & 7] = (int32_t)a;
+		flow = &(flow[1]);
 	}
 }

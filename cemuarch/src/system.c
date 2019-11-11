@@ -42,7 +42,7 @@ void emuarch_syscall(t_emuarch_cpu* cpu, int16_t id){
 				tmp_str++;
 				switch(*(tmp_str++)){
 					case 'i':
-						printf("%lli", pop_qword(cpu));
+						printf("%lli", (long long int)pop_qword(cpu));
 						break;
 					case 's':
 						printf("%s", adr_to_str(pop_qword(cpu)));
