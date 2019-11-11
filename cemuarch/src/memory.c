@@ -2,8 +2,6 @@
 #include <stdlib.h>
 #include "memory.h"
 
-#define DECODE_ADR(x) (((x) < RAM_OFFSET) ? (global_code + (x)) : (global_ram + (x) - RAM_OFFSET))
-
 void* global_code;
 void* global_ram;
 
