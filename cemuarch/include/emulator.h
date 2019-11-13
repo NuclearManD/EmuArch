@@ -20,6 +20,8 @@ int64_t pop_size(t_emuarch_cpu* cpu, uint8_t size);
 void push_size(t_emuarch_cpu* cpu, int64_t data, uint8_t size);
 void push_qword(t_emuarch_cpu* cpu, int64_t data);
 
+void call_immediate(t_emuarch_cpu* cpu, uint64_t function);
+
 int step(t_emuarch_cpu* cpu);
 void run(t_emuarch_cpu* cpu);
 
