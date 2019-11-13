@@ -240,6 +240,22 @@ void flow_ops(t_emuarch_cpu* cpu){
 	}
 }
 
+void call_immediate(t_emuarch_cpu* cpu, uint64_t function){
+	uint64_t stack_ptr = cpu->reg_set_0[6];
+	push_qword(cpu->PC);
+	cpu->PC = function;
+	while (1){
+		i = step(cpu);
+		if (i == -1){
+			break;
+		}else if (cpu->reg_set_0[6] >= stack_ptr){
+			if (cpu->reg_set_0[6] != stack_ptr)
+				cpu->reg_set_0[6] = stack_ptr;
+			break;
+		}
+	}
+}
+
 int step(t_emuarch_cpu* cpu){
 	uint8_t reg_raw;
 	uint8_t reg1, reg2;
