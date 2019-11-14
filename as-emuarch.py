@@ -194,6 +194,7 @@ TWO_ARG_MATH_OPS = ['add', 'sub', 'mul', 'div', 'and', 'or', 'xor', 'cmp',
                     None, None, None, None, 'lsh', 'rsh', 'ras', None]
 FLOW_OPS = ['inc', 'dec', 'neg', 'not', 'add', 'sub', 'mul', 'div',
             'and', 'or',  'xor', 'shl', 'shr', 'sar']
+FAST_JCON_OPS = ['jnz', 'jz', 'jl', 'jg']
 
 lslbl = ''
 
@@ -561,6 +562,16 @@ for tokens, linenum in token_gen(filedat):
         else:
             emit(0xEC)
             emit(0x28)
+            wr64(parseint(tokens[3]))
+    elif cmd in FAST_JCON_OPS:
+        if len(tokens) < 2:
+            error_missing_arg(linenum, cmd)
+        elif len(tokens) > 2:
+            error_too_many_args(linenum, cmd)
+        elif tokens[1] in regs:
+            error_bad_arg(linenum, cmd, tokens[1])
+        else:
+            emit(0x30 | FAST_JCON_OPS.index(cmd))
             wr64(parseint(tokens[3]))
     else:
         errormsg(linenum, "Unknown opcode '"+cmd+"'")

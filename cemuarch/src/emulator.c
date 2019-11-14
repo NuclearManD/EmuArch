@@ -430,6 +430,29 @@ int step(t_emuarch_cpu* cpu){
 				// 0b001xxxxx
 				if (opcode & 0x10){
 					// 0b0011xxxx (0x3X)
+					if (opcode & 0xC0 == 0){
+						tmp = opcode & 3;
+						switch(tmp){
+							case 0:
+								tmp = !(cpu->CR0 & 4);
+								break;
+							case 1:
+								tmp = cpu->CR0 & 4;
+								break;
+							case 2:
+								tmp = cpu->CR0 & 2;
+								break;
+							case 3:
+								tmp = cpu->CR0 & 1;
+								break;
+						}
+						if (tmp)
+							cpu->PC = ram_read_qword(cpu->PC);
+						else
+							cpu->PC += 8;
+					}else{
+						throw_exception(cpu, ERROR_INVALID_INSTRUCTION);
+					}
 				}else{
 					// 0b0010xxxxx (0x2X)
 					switch((opcode >> 2) & 3){
