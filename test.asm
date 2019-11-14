@@ -5,6 +5,7 @@ main:
 	call	putstr
 	call	test_math
 	call	test_mov
+	call	test_strops
 exit:
 	halt
 error:
@@ -180,6 +181,87 @@ test_math:
 	db "Testing Constops...\n", 0
 .str_math_pass:
 	db " $ MATH PASS OVERALL - NO ERRORS\n", 0
+	
+test_strops:
+	push si
+	push di
+	
+	movq si, .str_strop_test
+	call putstr
+	
+	xor r1, r1
+	xor rax, rax
+	movq si, .str_strfi_test
+	movb rax, '.'
+	strfi si, rax, .strfi_test_f
+	
+	movq di, .str_strcat_0
+	movq si, .str_strcat_1
+	strcat di, si
+	movq si, .str_strcat_0
+	call putstr
+	
+	movq si, .str_test_strcmp
+	call putstr
+	movq di, .str_strcmp_0
+	movq si, .str_strcmp_1
+	strcmp di, si
+	sub rax, -13
+	jnz rax, error
+	
+	movq si, .str_test_strcpy
+	call putstr
+	movq di, .str_strcmp_0
+	movq si, .str_strcmp_1
+	strcpy di, si
+	strcmp di, si
+	jnz rax, error
+	
+	movq si, .str_test_strlen
+	call putstr
+	movq si, .str_strcmp_0
+	strlen si
+	sub rax, 6
+	jnz rax, error
+	
+	movq si, .str_pass
+	call putstr
+	
+	pop di
+	pop si
+	ret
+.str_strop_test:
+	db "String ops test:\n", 0
+.str_strfi_test:
+	db ".s.trfi. is .work.ing.!.\n.", 0
+.str_strcat_0:
+	db "strcat ", 0
+.str_strcat_1:
+	db "is working!\n", 0
+.str_strcmp_0:
+	db "Hello!", 0
+.str_strcmp_1:
+	db "Hello.", 0
+.str_test_strcmp:
+	db "Testing strcmp...\n", 0
+.str_test_strcpy:
+	db "Testing strcpy...\n", 0
+.str_test_strlen:
+	db "Testing strlen...\n", 0
+.str_pass:
+	db "String tests passed!\n", 0
+.strfi_test_f:
+	lodb
+	movd r1, rax
+	sub r1, '.'
+	jz r1, .strfi_ret
+	jz rax, .strfi_ret
+	syscall 2
+	jmp .strfi_test_f
+.strfi_ret:
+	ret
+
+
 putstr:
 	syscall 4
 	ret

@@ -203,7 +203,7 @@ for tokens, linenum in token_gen(filedat):
         if cmd[0] == '.':
             cmd = lslbl + cmd
         else:
-            lslbl = cmd
+            lslbl = cmd[:-1]
         names[cmd[:-1]] = location
     elif cmd == '.org':
         if len(tokens) < 2 or not is_int(tokens[1]):
@@ -477,6 +477,91 @@ for tokens, linenum in token_gen(filedat):
                     emit(0x60 | opid)
                     emit(reg1)
                     wr_size(reg1>>3, parseint(tokens[2]))
+    elif cmd == 'strcmp':
+        if len(tokens) < 3:
+            error_missing_arg(linenum, cmd)
+        elif len(tokens) > 3:
+            error_too_many_args(linenum, cmd)
+        elif tokens[1] != 'di':
+            error_bad_arg(linenum, cmd, tokens[1])
+        elif tokens[2] != 'si':
+            error_bad_arg(linenum, cmd, tokens[2])
+        else:
+            emit(0xEC)
+            emit(0x20)
+    elif cmd == 'strcpy':
+        if len(tokens) < 3:
+            error_missing_arg(linenum, cmd)
+        elif len(tokens) > 3:
+            error_too_many_args(linenum, cmd)
+        elif tokens[1] != 'di':
+            error_bad_arg(linenum, cmd, tokens[1])
+        elif tokens[2] != 'si':
+            error_bad_arg(linenum, cmd, tokens[2])
+        else:
+            emit(0xEC)
+            emit(0x10)
+    elif cmd == 'strcat':
+        if len(tokens) < 3:
+            error_missing_arg(linenum, cmd)
+        elif len(tokens) > 3:
+            error_too_many_args(linenum, cmd)
+        elif tokens[1] != 'di':
+            error_bad_arg(linenum, cmd, tokens[1])
+        elif tokens[2] != 'si':
+            error_bad_arg(linenum, cmd, tokens[2])
+        else:
+            emit(0xEC)
+            emit(0x08)
+    elif cmd == 'strlen':
+        if len(tokens) < 2:
+            error_missing_arg(linenum, cmd)
+        elif len(tokens) > 2:
+            error_too_many_args(linenum, cmd)
+        elif tokens[1] != 'si':
+            error_bad_arg(linenum, cmd, tokens[1])
+        else:
+            emit(0xEC)
+            emit(0x00)
+    elif cmd == 'strf':
+        if len(tokens) < 3:
+            error_missing_arg(linenum, cmd)
+        elif len(tokens) > 3:
+            error_too_many_args(linenum, cmd)
+        elif tokens[1] != 'si':
+            error_bad_arg(linenum, cmd, tokens[1])
+        elif tokens[2] != 'rax':
+            error_bad_arg(linenum, cmd, tokens[2])
+        else:
+            emit(0xEC)
+            emit(0x18)
+    elif cmd == 'strskip':
+        if len(tokens) < 3:
+            error_missing_arg(linenum, cmd)
+        elif len(tokens) > 3:
+            error_too_many_args(linenum, cmd)
+        elif tokens[1] != 'si':
+            error_bad_arg(linenum, cmd, tokens[1])
+        elif tokens[2] != 'rax':
+            error_bad_arg(linenum, cmd, tokens[2])
+        else:
+            emit(0xEC)
+            emit(0x30)
+    elif cmd == 'strfi':
+        if len(tokens) < 4:
+            error_missing_arg(linenum, cmd)
+        elif len(tokens) > 4:
+            error_too_many_args(linenum, cmd)
+        elif tokens[1] != 'si':
+            error_bad_arg(linenum, cmd, tokens[1])
+        elif tokens[2] != 'rax':
+            error_bad_arg(linenum, cmd, tokens[2])
+        elif tokens[3] in regs:
+            error_bad_arg(linenum, cmd, tokens[3])
+        else:
+            emit(0xEC)
+            emit(0x28)
+            wr64(parseint(tokens[3]))
     else:
         errormsg(linenum, "Unknown opcode '"+cmd+"'")
     lsop = location

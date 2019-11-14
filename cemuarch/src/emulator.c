@@ -5,13 +5,7 @@
 #include "flow_and_shape.h"
 #include "memory.h"
 #include "system.h"
-
-#define PC	reg_set_0[7]
-#define SP	reg_set_0[6]
-#define SI	reg_set_0[4]
-#define DI	reg_set_0[5]
-#define CNT	reg_set_1[6]
-#define CR0	reg_set_1[7]
+#include "strings.h"
 
 #define GETREG(x, y) ((((y) & 0x18) == 0) ? (x)->reg_set_0[y] : (x)->reg_set_1[y & 7])
 
@@ -20,8 +14,6 @@
 #define SIZE_TO_MASK(x)		(0xFFFFFFFFFFFFFFFFULL >> (64 - (8 << (3 - (x)))))
 #define REG_BITS(x)			(((x) & 8) ? 32 : 64)
 #define REG_BYTES(x)		((16 - ((x) & 8)) >> 1)
-
-#define ERROR_INVALID_INSTRUCTION -100
 
 #define OP_INC	0x00
 #define OP_DEC	0x01
@@ -231,9 +223,13 @@ void flow_ops(t_emuarch_cpu* cpu){
 	uint8_t subop = ram_read_byte(cpu->PC);
 	cpu->PC++;
 	if (subop == 0x00){
+		// flow @
+
 		cpu->PC += 8;
 		run_flow(cpu->reg_set_0, cpu->reg_set_1, ram_read_qword(cpu->PC - 8));
 	}else if(subop == 0x01){
+		// flow si
+
 		run_flow(cpu->reg_set_0, cpu->reg_set_1, cpu->SI);
 	}else{
 		throw_exception(cpu, ERROR_INVALID_INSTRUCTION);
@@ -241,9 +237,12 @@ void flow_ops(t_emuarch_cpu* cpu){
 }
 
 void call_immediate(t_emuarch_cpu* cpu, uint64_t function){
-	uint64_t stack_ptr = cpu->reg_set_0[6];
-	push_qword(cpu->PC);
+	int64_t stack_ptr = cpu->reg_set_0[6];
+	int i;
+
+	push_qword(cpu, cpu->PC);
 	cpu->PC = function;
+	
 	while (1){
 		i = step(cpu);
 		if (i == -1){
@@ -287,6 +286,9 @@ int step(t_emuarch_cpu* cpu){
 				}else if (tmp1 == 0x0B){
 					// [FLOW OPS]
 					flow_ops(cpu);
+				}else if (tmp1 == 0x0C){
+					// [MEM & STR OPS]
+					memstr_ops(cpu);
 				}else if (tmp1 == 0x1F){
 					// halt
 					return -1;
