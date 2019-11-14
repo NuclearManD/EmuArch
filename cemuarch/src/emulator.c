@@ -430,9 +430,9 @@ int step(t_emuarch_cpu* cpu){
 				// 0b001xxxxx
 				if (opcode & 0x10){
 					// 0b0011xxxx (0x3X)
-					if ((opcode & 0x0C) == 0){
-						tmp = opcode & 0x03;
-						switch (tmp){
+					if ((opcode & 0xC0) == 0){
+						tmp = opcode & 3;
+						switch(tmp){
 							case 0:
 								tmp = !(cpu->CR0 & 4);
 								break;
