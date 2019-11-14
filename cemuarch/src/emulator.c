@@ -430,6 +430,28 @@ int step(t_emuarch_cpu* cpu){
 				// 0b001xxxxx
 				if (opcode & 0x10){
 					// 0b0011xxxx (0x3X)
+					if ((opcode & 0x0C) == 0){
+						tmp = opcode & 0x03;
+						switch (tmp){
+							case 0:
+								tmp = !(cpu->CR0 & 4);
+								break;
+							case 1:
+								tmp = cpu->CR0 & 4;
+								break;
+							case 2:
+								tmp = cpu->CR0 & 1;
+								break;
+							case 3:
+								tmp = cpu->CR0 & 2;
+								break;
+						}
+						if (tmp)
+							cpu->PC = ram_read_qword(cpu->PC);
+						else
+							cpu->PC += 8;
+					}else
+						throw_exception(cpu, ERROR_INVALID_INSTRUCTION);
 				}else{
 					// 0b0010xxxxx (0x2X)
 					switch((opcode >> 2) & 3){
@@ -481,7 +503,7 @@ int step(t_emuarch_cpu* cpu){
 						case 1:
 							// cmp[s] rax, ?
 							size = opcode & 3;
-							alu(cpu, OP_CMP, cpu->reg_set_0[0] & SIZE_TO_MASK(size), ram_read_size(size, cpu->PC));
+							alu(cpu, OP_CMP, cpu->reg_set_0[0] & SIZE_TO_MASK(size), ram_read_size(cpu->PC, size));
 							cpu->PC += SIZE_TO_BYTES(size);
 							break;
 						case 2:

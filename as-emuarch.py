@@ -189,6 +189,7 @@ MOV_OPS = ['movq', 'movd', 'movw', 'movb']
 LOAD_OPS = ['lodq', 'lodd', 'lodw', 'lodb']
 RAX_CMP_OPS = ['cmpq', 'cmpd', 'cmpw', 'cmpb']
 JCON_OPS = ['jz', 'jnz']
+FAST_JCON_OPS = ['jnz', 'jz', 'jl', 'jg']
 ONE_ARG_MATH_OPS = ['inc', 'dec', 'neg', 'not', 'sqrt', 'tanh']
 TWO_ARG_MATH_OPS = ['add', 'sub', 'mul', 'div', 'and', 'or', 'xor', 'cmp',
                     None, None, None, None, 'lsh', 'rsh', 'ras', None]
@@ -381,12 +382,8 @@ for tokens, linenum in token_gen(filedat):
         else:
             emit(0b11100000)
             wr64(parseint(tokens[1]))
-    elif cmd in JCON_OPS:
-        if len(tokens) < 3:
-            error_missing_arg(linenum, cmd)
-        elif len(tokens) > 3:
-            error_too_many_args(linenum, cmd)
-        elif not tokens[1] in regs[:16]:
+    elif cmd in JCON_OPS and len(tokens) == 3:
+        if not tokens[1] in regs[:16]:
             error_non_reg_arg(linenum, cmd, tokens[1])
         else:
             ctrl = JCON_OPS.index(cmd) << 4
@@ -394,6 +391,14 @@ for tokens, linenum in token_gen(filedat):
             emit(0x90)
             emit(ctrl)
             wr64(parseint(tokens[2]))
+    elif cmd in FAST_JCON_OPS:
+        if len(tokens) < 2:
+            error_missing_arg(linenum, cmd)
+        elif len(tokens) > 2:
+            error_too_many_args(linenum, cmd)
+        else:
+            emit(0x30 | FAST_JCON_OPS.index(cmd))
+            wr64(parseint(tokens[1]))
     elif cmd in LOAD_OPS:
         size = LOAD_OPS.index(cmd)
         if len(tokens) > 1:

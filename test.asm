@@ -85,7 +85,8 @@ test_math:
 	
 	movq	rax, -1
 	inc	rax
-	jnz	rax, error
+	cmpq rax, 0
+	jnz	error
 	
 	movd	r1, 0
 	inc	r1
@@ -100,8 +101,8 @@ test_math:
 	movq	di, 10
 	sub	r0, di
 	jz	r0, error
-	inc	r0
-	jnz	r0, error
+	cmp r0, -1
+	jnz	error
 	
 	movd	r0, -10
 	movq	di, 10
@@ -128,6 +129,8 @@ test_math:
 	ras	r0, r1
 	movd	r1, -75
 	sub	r0, r1
+	cmp r0, 0
+	jg	error
 	jnz	r0, error
 	
 	movw	si, .str_constop
