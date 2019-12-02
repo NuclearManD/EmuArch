@@ -4,29 +4,26 @@
 
 #include <stdint.h>
 
+#include "emulator.h"
+
 #define CODE_OFFSET	0x00000000
 #define RAM_OFFSET	0x80000000
 #define MAX_RAM_SIZE RAM_OFFSET
 
-extern void* global_code;
-extern void* global_ram;
+#define DECODE_ADR(c,x) (((x) < RAM_OFFSET) ? (c->code + (x)) : (c->ram + (x) - RAM_OFFSET))
 
-#define DECODE_ADR(x) (((x) < RAM_OFFSET) ? (global_code + (x)) : (global_ram + (x) - RAM_OFFSET))
+char* adr_to_str(t_emuarch_cpu* cpu, int64_t address);
 
-void setup_memory(void* code, uint32_t ram_size);
+int8_t	ram_read_byte(t_emuarch_cpu* cpu, uint64_t address);
+int16_t	ram_read_word(t_emuarch_cpu* cpu, uint64_t address);
+int32_t	ram_read_dword(t_emuarch_cpu* cpu, uint64_t address);
+int64_t	ram_read_qword(t_emuarch_cpu* cpu, uint64_t address);
+int64_t	ram_read_size(t_emuarch_cpu* cpu, uint64_t address, char size);
 
-char* adr_to_str(int64_t address);
-
-int8_t	ram_read_byte(uint64_t address);
-int16_t	ram_read_word(uint64_t address);
-int32_t	ram_read_dword(uint64_t address);
-int64_t	ram_read_qword(uint64_t address);
-int64_t	ram_read_size(uint64_t address, char size);
-
-void	ram_write_byte(uint64_t address, int8_t data);
-void	ram_write_word(uint64_t address, int16_t data);
-void	ram_write_dword(uint64_t address, int32_t data);
-void	ram_write_qword(uint64_t address, int64_t data);
-void	ram_write_size(uint64_t address, int64_t data, char size);
+void	ram_write_byte(t_emuarch_cpu* cpu, uint64_t address, int8_t data);
+void	ram_write_word(t_emuarch_cpu* cpu, uint64_t address, int16_t data);
+void	ram_write_dword(t_emuarch_cpu* cpu, uint64_t address, int32_t data);
+void	ram_write_qword(t_emuarch_cpu* cpu, uint64_t address, int64_t data);
+void	ram_write_size(t_emuarch_cpu* cpu, uint64_t address, int64_t data, char size);
 
 #endif

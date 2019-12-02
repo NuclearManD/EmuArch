@@ -4,6 +4,6 @@
 
 #include <stdint.h>
 
-void run_flow(int64_t*	regs0, int32_t*	regs1, int64_t address);
+void run_flow(t_emuarch_cpu* cpu, int64_t address);
 
 #endif

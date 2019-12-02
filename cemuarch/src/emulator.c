@@ -70,11 +70,13 @@ serving.
 Source: 42 Silicon Valley, C Piscine Rush02 subject
 */
 
-t_emuarch_cpu* make_cpu(int64_t pc, int64_t sp){
+t_emuarch_cpu* make_cpu(int64_t pc, int64_t sp, void* code, size_t ram_size){
 	t_emuarch_cpu* cpu = malloc(sizeof(t_emuarch_cpu));
 	cpu->total_operations = 0;
 	cpu->PC = pc;
 	cpu->SP = sp;
+	cpu->ram = malloc(ram_size);
+	cpu->code = code;
 	return cpu;
 }
 
@@ -198,39 +200,39 @@ int64_t read_reg(t_emuarch_cpu* cpu, uint8_t size, uint8_t regid){
 */
 
 int64_t pop_qword(t_emuarch_cpu* cpu){
-	int64_t data = ram_read_qword(cpu->SP + 1);
+	int64_t data = ram_read_qword(cpu, cpu->SP + 1);
 	cpu->SP += 8;
 	return data;
 }
 
 int64_t pop_size(t_emuarch_cpu* cpu, uint8_t size){
-	int64_t data = ram_read_size(cpu->SP + 1, size);
+	int64_t data = ram_read_size(cpu, cpu->SP + 1, size);
 	cpu->SP += SIZE_TO_BYTES(size);
 	return data;
 }
 
 void push_size(t_emuarch_cpu* cpu, int64_t data, uint8_t size){
 	uint64_t adr = cpu->SP -= SIZE_TO_BYTES(size);
-	ram_write_size(adr + 1, data, size);
+	ram_write_size(cpu, adr + 1, data, size);
 }
 
 void push_qword(t_emuarch_cpu* cpu, int64_t data){
 	uint64_t adr = cpu->SP -= 8;
-	ram_write_qword(adr + 1, data);
+	ram_write_qword(cpu, adr + 1, data);
 }
 
 void flow_ops(t_emuarch_cpu* cpu){
-	uint8_t subop = ram_read_byte(cpu->PC);
+	uint8_t subop = ram_read_byte(cpu, cpu->PC);
 	cpu->PC++;
 	if (subop == 0x00){
 		// flow @
 
 		cpu->PC += 8;
-		run_flow(cpu->reg_set_0, cpu->reg_set_1, ram_read_qword(cpu->PC - 8));
+		run_flow(cpu, ram_read_qword(cpu, cpu->PC - 8));
 	}else if(subop == 0x01){
 		// flow si
 
-		run_flow(cpu->reg_set_0, cpu->reg_set_1, cpu->SI);
+		run_flow(cpu, cpu->SI);
 	}else{
 		throw_exception(cpu, ERROR_INVALID_INSTRUCTION);
 	}
@@ -265,7 +267,7 @@ int step(t_emuarch_cpu* cpu){
 	uint64_t mask;
 
 	// first fetch an opcode
-	opcode = ram_read_byte(cpu->PC);
+	opcode = ram_read_byte(cpu, cpu->PC);
 	//printf("%08lX > %02hhX\n", cpu->PC, opcode);
 	cpu->PC++;
 	
@@ -282,7 +284,7 @@ int step(t_emuarch_cpu* cpu){
 				// 0b111xxxxx
 				if (tmp1 == 0){
 					// jmp @
-					cpu->PC = ram_read_qword(cpu->PC);
+					cpu->PC = ram_read_qword(cpu, cpu->PC);
 				}else if (tmp1 == 0x0B){
 					// [FLOW OPS]
 					flow_ops(cpu);
@@ -298,7 +300,7 @@ int step(t_emuarch_cpu* cpu){
 				if ((tmp1 & 0x13) == 0x00){
 					// lod[s]
 					size = (opcode >> 2) & 3;
-					write_reg(cpu, size, 0, ram_read_size(cpu->SI, size));
+					write_reg(cpu, size, 0, ram_read_size(cpu, cpu->SI, size));
 					cpu->SI+=SIZE_TO_BYTES(size);
 				}
 			}
@@ -309,39 +311,39 @@ int step(t_emuarch_cpu* cpu){
 				// CISC stack ops
 				if (tmp1 == 0){
 					// pop r1
-					reg1 = ram_read_byte(cpu->PC) & 0x1F;
+					reg1 = ram_read_byte(cpu, cpu->PC) & 0x1F;
 					cpu->PC++;
 					
 					load_reg(cpu, reg1, pop_size(cpu, REG_SIZE(reg1)));
 				}else if (tmp1 == 1){
 					// push r1
-					reg1 = ram_read_byte(cpu->PC) & 0x1F;
+					reg1 = ram_read_byte(cpu, cpu->PC) & 0x1F;
 					cpu->PC++;
 					
 					push_size(cpu, GETREG(cpu, reg1), REG_SIZE(reg1));
 				}else if (tmp1 == 2){
 					// call @
 					push_qword(cpu, cpu->PC + 8);
-					cpu->PC = ram_read_qword(cpu->PC);
+					cpu->PC = ram_read_qword(cpu, cpu->PC);
 				}
 			}else{
 				// 0b100xxxxx
 				switch(tmp1){
 					case 0:
 						// syscall **
-						emuarch_syscall(cpu, ram_read_word(cpu->PC));
+						emuarch_syscall(cpu, ram_read_word(cpu, cpu->PC));
 						cpu->PC += 2;
 						break;
 					case 1:
 						// mov[s] <msb reverse bit> r1, ?
-						reg_raw = ram_read_byte(cpu->PC);
+						reg_raw = ram_read_byte(cpu, cpu->PC);
 						cpu->PC++;
 						
 						reg1 = reg_raw & 0x1F;
 						size = (reg_raw >> 5) & 3;
 						mask = SIZE_TO_MASK(size);
 						
-						data = ram_read_size(cpu->PC, size);
+						data = ram_read_size(cpu, cpu->PC, size);
 						cpu->PC += SIZE_TO_BYTES(size);
 						
 						if (reg_raw & 128){
@@ -358,20 +360,20 @@ int step(t_emuarch_cpu* cpu){
 						break;
 					case 16:
 						// j[c] r1, @
-						reg_raw = ram_read_byte(cpu->PC);
+						reg_raw = ram_read_byte(cpu, cpu->PC);
 						
 						tmp = GETREG(cpu, reg_raw & 0x0F);
 						
 						if ((reg_raw >> 4) == 0){
 							// jz r1, @
 							if (tmp == 0)
-								cpu->PC = ram_read_qword(cpu->PC + 1);
+								cpu->PC = ram_read_qword(cpu, cpu->PC + 1);
 							else
 								cpu->PC += 9;
 						}else{
 							// jnz r1, @
 							if (tmp != 0)
-								cpu->PC = ram_read_qword(cpu->PC + 1);
+								cpu->PC = ram_read_qword(cpu, cpu->PC + 1);
 							else
 								cpu->PC += 9;
 						}
@@ -390,14 +392,14 @@ int step(t_emuarch_cpu* cpu){
 				case 0x40:
 					// 0b0100xxxx
 					// Single argument register mathematics
-					reg1 = ram_read_byte(cpu->PC) & 0x1F;
+					reg1 = ram_read_byte(cpu, cpu->PC) & 0x1F;
 					cpu->PC++;
 					load_reg(cpu, reg1, sarg_alu(cpu, opcode & 15, GETREG(cpu, reg1)));
 					break;
 				case 0x50:
 					// 0b0101xxxx
 					// Register - register dual argument mathematics
-					reg_raw = ram_read_byte(cpu->PC);
+					reg_raw = ram_read_byte(cpu, cpu->PC);
 					cpu->PC++;
 
 					// NOTE:	THIS CODE WILL NOT SUPPORT FLOAT OPERATIONS.  IT DOES NOT CHECK FOR
@@ -410,13 +412,13 @@ int step(t_emuarch_cpu* cpu){
 				case 0x60:
 					// 0b0110xxxx
 					// Register - constant dual argument mathematics
-					reg1 = ram_read_byte(cpu->PC) & 15;
+					reg1 = ram_read_byte(cpu, cpu->PC) & 15;
 					cpu->PC++;
 
 					if (((opcode & 31) < 0x1C && (opcode & 31) > 0x17) || (opcode & 31) == 0x1F)
 						throw_exception(cpu, ERROR_INVALID_INSTRUCTION);
 
-					tmp = ram_read_size(cpu->PC, REG_SIZE(reg1));
+					tmp = ram_read_size(cpu, cpu->PC, REG_SIZE(reg1));
 					cpu->PC += REG_BYTES(reg1);
 
 					load_reg(cpu, reg1, alu(cpu, (opcode & 31) | 16, GETREG(cpu, reg1), tmp));
@@ -447,7 +449,7 @@ int step(t_emuarch_cpu* cpu){
 								break;
 						}
 						if (tmp)
-							cpu->PC = ram_read_qword(cpu->PC);
+							cpu->PC = ram_read_qword(cpu, cpu->PC);
 						else
 							cpu->PC += 8;
 					}else
@@ -458,25 +460,25 @@ int step(t_emuarch_cpu* cpu){
 						case 0:
 							// mov[s] r1i, [r2i + **]
 							size = opcode & 3;
-							reg_raw = ram_read_byte(cpu->PC);
+							reg_raw = ram_read_byte(cpu, cpu->PC);
 							reg1 = reg_raw >> 4;
 							reg2 = reg_raw & 15;
 							cpu->PC++;
 
-							address = ram_read_word(cpu->PC) + GETREG(cpu, reg2);
+							address = ram_read_word(cpu, cpu->PC) + GETREG(cpu, reg2);
 							cpu->PC += 2;
-							write_reg(cpu, size, reg1, ram_read_size(address, size));
+							write_reg(cpu, size, reg1, ram_read_size(cpu, address, size));
 							break;
 						case 1:
 							// mov[s] [r2i + **], r1i
 							size = opcode & 3;
-							reg_raw = ram_read_byte(cpu->PC);
+							reg_raw = ram_read_byte(cpu, cpu->PC);
 							reg1 = reg_raw >> 4;
 							reg2 = reg_raw & 15;
 							cpu->PC++;
 
-							address = ram_read_word(cpu->PC) + GETREG(cpu, reg2);
-							ram_write_size(address, GETREG(cpu, reg1), size);
+							address = ram_read_word(cpu, cpu->PC) + GETREG(cpu, reg2);
+							ram_write_size(cpu, address, GETREG(cpu, reg1), size);
 							cpu->PC += 2;
 							break;
 						default:
@@ -491,7 +493,7 @@ int step(t_emuarch_cpu* cpu){
 					switch(size){
 						case 0:
 							// exx r1, r2
-							reg_raw = ram_read_byte(cpu->PC);
+							reg_raw = ram_read_byte(cpu, cpu->PC);
 							cpu->PC++;
 							reg1 = ((opcode & 2) << 3) | (reg_raw >> 4);
 							reg2 = ((opcode & 1) << 4) | (reg_raw & 15);
@@ -503,12 +505,12 @@ int step(t_emuarch_cpu* cpu){
 						case 1:
 							// cmp[s] rax, ?
 							size = opcode & 3;
-							alu(cpu, OP_CMP, cpu->reg_set_0[0] & SIZE_TO_MASK(size), ram_read_size(cpu->PC, size));
+							alu(cpu, OP_CMP, cpu->reg_set_0[0] & SIZE_TO_MASK(size), ram_read_size(cpu, cpu->PC, size));
 							cpu->PC += SIZE_TO_BYTES(size);
 							break;
 						case 2:
 							// l32 r, #
-							write_reg(cpu, 1, opcode & 3, ram_read_dword(cpu->PC));
+							write_reg(cpu, 1, opcode & 3, ram_read_dword(cpu, cpu->PC));
 							cpu->PC += 4;
 							break;
 						default:
@@ -516,7 +518,7 @@ int step(t_emuarch_cpu* cpu){
 					}
 				}else{
 					size = (opcode >> 2) & 3;
-					reg_raw = ram_read_byte(cpu->PC);
+					reg_raw = ram_read_byte(cpu, cpu->PC);
 					cpu->PC++;
 					reg1 = ((opcode & 2) << 3) | (reg_raw >> 4);
 					reg2 = ((opcode & 1) << 4) | (reg_raw & 15);

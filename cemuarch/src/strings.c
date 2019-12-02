@@ -25,7 +25,7 @@ int strfind(char* str, char c){
 }
 
 void strfinditer(t_emuarch_cpu* cpu, uint64_t function){
-	char* str = adr_to_str(cpu->SI);
+	char* str = adr_to_str(cpu, cpu->SI);
 	int64_t adr = cpu->SI;
 	char c = cpu->reg_set_0[0];
 	int i;
@@ -50,39 +50,39 @@ void strfinditer(t_emuarch_cpu* cpu, uint64_t function){
 
 void memstr_ops(t_emuarch_cpu* cpu){
 	uint64_t tmp64;
-	uint8_t subop = ram_read_byte(cpu->PC);
+	uint8_t subop = ram_read_byte(cpu, cpu->PC);
 
 	cpu->PC++;
 	if (subop == 0x00){
 		// strlen si
 
-		cpu->reg_set_0[0] = strlen(adr_to_str(cpu->SI));
+		cpu->reg_set_0[0] = strlen(adr_to_str(cpu, cpu->SI));
 	}else if(subop == 0x08){
 		// strcat di, si
 
-		strcat(adr_to_str(cpu->DI), adr_to_str(cpu->SI));
+		strcat(adr_to_str(cpu, cpu->DI), adr_to_str(cpu, cpu->SI));
 	}else if(subop == 0x10){
 		// strcpy di, si
 
-		strcpy(adr_to_str(cpu->DI), adr_to_str(cpu->SI));
+		strcpy(adr_to_str(cpu, cpu->DI), adr_to_str(cpu, cpu->SI));
 	}else if(subop == 0x18){
 		// strf si, rax
 
-		cpu->SI += strfind(adr_to_str(cpu->SI), cpu->reg_set_0[0]);
+		cpu->SI += strfind(adr_to_str(cpu, cpu->SI), cpu->reg_set_0[0]);
 	}else if(subop == 0x20){
 		// strcmp di, si
 
-		cpu->reg_set_0[0] = strcmp(adr_to_str(cpu->DI), adr_to_str(cpu->SI));
+		cpu->reg_set_0[0] = strcmp(adr_to_str(cpu, cpu->DI), adr_to_str(cpu, cpu->SI));
 	}else if(subop == 0x28){
 		// strfi si, rax, @
 
-		tmp64 = ram_read_qword(cpu->PC);
+		tmp64 = ram_read_qword(cpu, cpu->PC);
 		cpu->PC += 8;
 		strfinditer(cpu, tmp64);
 	}else if(subop == 0x30){
 		// strskip si, rax
 
-		cpu->SI += strskip(adr_to_str(cpu->SI), cpu->reg_set_0[0]);
+		cpu->SI += strskip(adr_to_str(cpu, cpu->SI), cpu->reg_set_0[0]);
 	}else{
 		throw_exception(cpu, ERROR_INVALID_INSTRUCTION);
 	}

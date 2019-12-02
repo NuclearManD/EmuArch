@@ -75,8 +75,7 @@ int main(int argc, char** argv){
 	}
 
 	memory_size *= 1024;
-	setup_memory(code_data, memory_size);
-	cpu = make_cpu(0, (memory_size - 1) | RAM_OFFSET);
+	cpu = make_cpu(0, (memory_size - 1) | RAM_OFFSET, code_data, memory_size);
 
 	if (get_arg(argc, argv, "-d") == -1){
 		us_timer = micros();
@@ -116,7 +115,7 @@ int main(int argc, char** argv){
 			}else if (c == 'd'){
 				printf(" Total operations executed: %llu\n", (long long unsigned int)cpu->total_operations);
 			}else if (c == 'n'){
-				printf(" 0x%016llX | 0x%02hhX\n", (long long int)cpu->reg_set_0[7], ram_read_byte(cpu->reg_set_0[7]));
+				printf(" 0x%016llX | 0x%02hhX\n", (long long int)cpu->reg_set_0[7], ram_read_byte(cpu, cpu->reg_set_0[7]));
 			}else if (c == 'o'){
 				stack_ptr = cpu->reg_set_0[6];
 				printf(" Stack pointer: 0x%016llX\n", (long long int)stack_ptr);

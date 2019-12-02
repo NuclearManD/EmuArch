@@ -36,7 +36,7 @@ void emuarch_syscall(t_emuarch_cpu* cpu, int16_t id){
 		// arguments used are poped off the stack
 		// to prevent stack corruption and/or undefined behavior, 
 		//   a qword is popped for each argument, regardless of argument size.
-		tmp_str = adr_to_str(cpu->reg_set_0[4]);
+		tmp_str = adr_to_str(cpu, cpu->reg_set_0[4]);
 		while (*tmp_str){
 			if (*(tmp_str) == '%'){
 				tmp_str++;
@@ -45,7 +45,7 @@ void emuarch_syscall(t_emuarch_cpu* cpu, int16_t id){
 						printf("%lli", (long long int)pop_qword(cpu));
 						break;
 					case 's':
-						printf("%s", adr_to_str(pop_qword(cpu)));
+						printf("%s", adr_to_str(cpu, pop_qword(cpu)));
 						break;
 					case 0:
 						return;
@@ -59,7 +59,7 @@ void emuarch_syscall(t_emuarch_cpu* cpu, int16_t id){
 		}
 
 	}else if (id == SYSCALL_PUTSTR){
-		printf("%s", adr_to_str(cpu->reg_set_0[4]));
+		printf("%s", adr_to_str(cpu, cpu->reg_set_0[4]));
 	}else if (id == SYSCALL_MILLIS){
 		cpu->reg_set_0[0] = millis();
 	}else if (id == SYSCALL_MICROS){

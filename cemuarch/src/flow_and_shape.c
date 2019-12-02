@@ -1,10 +1,14 @@
 
 #include <stdint.h>
 #include "memory.h"
+#include "emulator.h"
 
-void run_flow(int64_t*	regs0, int32_t*	regs1, int64_t address)
+void run_flow(t_emuarch_cpu* cpu, int64_t address)
 {
-	uint16_t*	flow = (uint16_t*)DECODE_ADR(address);
+	int64_t*	regs0 = cpu->reg_set_0;
+	int32_t*	regs1 = cpu->reg_set_1;
+	
+	uint16_t*	flow = (uint16_t*)DECODE_ADR(cpu, address);
 	uint16_t	current;
 	uint8_t		reg1;
 	int64_t		a, b;
