@@ -6,7 +6,7 @@ main:
 
 	movq rcx, 99023
 	movq rbx, -83764
-	movd cnt, 0x10000000
+	movd cnt, 0x10000
 	movq rdx, 0xC9025621FE21
 	movd r2, 13
 .loop:
@@ -33,7 +33,7 @@ main:
 	
 	movq rcx, 99023
 	movq rbx, -83764
-	movd cnt, 0x10000000
+	movd cnt, 0x10000
 	movq rdx, 0xC9025621FE21
 	movd r2, 13
 .loop2:

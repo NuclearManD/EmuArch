@@ -195,7 +195,6 @@ TWO_ARG_MATH_OPS = ['add', 'sub', 'mul', 'div', 'and', 'or', 'xor', 'cmp',
                     None, None, None, None, 'lsh', 'rsh', 'ras', None]
 FLOW_OPS = ['inc', 'dec', 'neg', 'not', 'add', 'sub', 'mul', 'div',
             'and', 'or',  'xor', 'shl', 'shr', 'sar']
-FAST_JCON_OPS = ['jnz', 'jz', 'jl', 'jg']
 
 lslbl = ''
 
